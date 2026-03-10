@@ -1,0 +1,196 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Android Sanity Test Report</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f5f5f5; }
+        .container { background-color: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1, h2 { color: #333; }
+        .summary-box { display: flex; gap: 20px; margin-bottom: 20px; }
+        .stat-card { background: #e9ecef; padding: 15px; border-radius: 6px; flex: 1; text-align: center; }
+        .pass { color: #28a745; font-weight: bold; }
+        .fail { color: #dc3545; font-weight: bold; }
+        .readiness-banner { padding: 15px; font-size: 1.2em; font-weight: bold; text-align: center; border-radius: 6px; margin-bottom: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background-color: #f8f9fa; }
+        .status-PASS { color: white; background-color: #28a745; padding: 4px 8px; border-radius: 4px; font-size: 0.9em; }
+        .status-FAIL { color: white; background-color: #dc3545; padding: 4px 8px; border-radius: 4px; font-size: 0.9em; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📱 Android Sanity Test Report</h1>
+        
+        <div class="readiness-banner" style="background-color: #fff3cd">
+            Release Recommendation: 🟡 Conditional Release (Review Required)
+        </div>
+
+        <div class="summary-box">
+            <div class="stat-card"><h3>Total Tests</h3><p>18</p></div>
+            <div class="stat-card"><h3>Passed</h3><p class="pass">15</p></div>
+            <div class="stat-card"><h3>Failed</h3><p class="fail">3</p></div>
+            <div class="stat-card"><h3>Duration</h3><p>23.27s</p></div>
+        </div>
+        
+        <h2>Device Information</h2>
+        <ul>
+            
+            <li><strong>Model:</strong> T70</li>
+            
+            <li><strong>Brand:</strong> Trimble</li>
+            
+            <li><strong>Android Version:</strong> 15</li>
+            
+            <li><strong>Build Number:</strong> 02.00.17.251018 release-keys</li>
+            
+            <li><strong>Serial:</strong> DBB252400028</li>
+            
+        </ul>
+
+        <h2>Detailed Test Results (Fully Automated)</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Category</th>
+                    <th>Test Name</th>
+                    <th>Status</th>
+                    <th>Details</th>
+                </tr>
+            </thead>
+            <tbody>
+                
+                <tr>
+                    <td>System</td>
+                    <td>ADB & UIAutomator Connection</td>
+                    <td><span class="status-PASS">PASS</span></td>
+                    <td>Successfully connected to device and injected test agents.</td>
+                </tr>
+                
+                <tr>
+                    <td>Display</td>
+                    <td>Set Brightness via ADB</td>
+                    <td><span class="status-PASS">PASS</span></td>
+                    <td>Successfully changed brightness to 50</td>
+                </tr>
+                
+                <tr>
+                    <td>Display</td>
+                    <td>Screen Off (Suspend)</td>
+                    <td><span class="status-PASS">PASS</span></td>
+                    <td>Screen successfully turned off</td>
+                </tr>
+                
+                <tr>
+                    <td>Display</td>
+                    <td>Screen On (Resume)</td>
+                    <td><span class="status-PASS">PASS</span></td>
+                    <td>Screen successfully turned on</td>
+                </tr>
+                
+                <tr>
+                    <td>Audio</td>
+                    <td>Audio Service Check</td>
+                    <td><span class="status-PASS">PASS</span></td>
+                    <td>AudioService is running</td>
+                </tr>
+                
+                <tr>
+                    <td>Audio</td>
+                    <td>Media Volume Control</td>
+                    <td><span class="status-FAIL">FAIL</span></td>
+                    <td>Failed to verify media volume. Output: </td>
+                </tr>
+                
+                <tr>
+                    <td>Audio</td>
+                    <td>Audio HAL Initialization</td>
+                    <td><span class="status-PASS">PASS</span></td>
+                    <td>Audio HAL is loaded and responding</td>
+                </tr>
+                
+                <tr>
+                    <td>Camera</td>
+                    <td>Camera HAL Initialization</td>
+                    <td><span class="status-PASS">PASS</span></td>
+                    <td>Camera HAL exposes at least one camera device</td>
+                </tr>
+                
+                <tr>
+                    <td>Camera</td>
+                    <td>Camera App Foreground</td>
+                    <td><span class="status-FAIL">FAIL</span></td>
+                    <td>Camera app is not in the foreground. Current: mCurrentFocus=Window{1a78b20 u0 NotificationShade}</td>
+                </tr>
+                
+                <tr>
+                    <td>Connectivity</td>
+                    <td>WiFi Enable</td>
+                    <td><span class="status-PASS">PASS</span></td>
+                    <td>Successfully enabled WiFi</td>
+                </tr>
+                
+                <tr>
+                    <td>Connectivity</td>
+                    <td>WiFi IP Address</td>
+                    <td><span class="status-FAIL">FAIL</span></td>
+                    <td>No IP address assigned to wlan0 (May need AP configuration)</td>
+                </tr>
+                
+                <tr>
+                    <td>Connectivity</td>
+                    <td>Bluetooth Enable</td>
+                    <td><span class="status-PASS">PASS</span></td>
+                    <td>Successfully enabled Bluetooth</td>
+                </tr>
+                
+                <tr>
+                    <td>Sensors</td>
+                    <td>Accelerometer</td>
+                    <td><span class="status-PASS">PASS</span></td>
+                    <td>Accelerometer driver detected</td>
+                </tr>
+                
+                <tr>
+                    <td>Sensors</td>
+                    <td>Gyroscope</td>
+                    <td><span class="status-PASS">PASS</span></td>
+                    <td>Gyroscope driver detected</td>
+                </tr>
+                
+                <tr>
+                    <td>Sensors</td>
+                    <td>Light Sensor</td>
+                    <td><span class="status-PASS">PASS</span></td>
+                    <td>Light sensor driver detected</td>
+                </tr>
+                
+                <tr>
+                    <td>Power</td>
+                    <td>Battery Read</td>
+                    <td><span class="status-PASS">PASS</span></td>
+                    <td>Battery Level: 100%, AC Powered: true</td>
+                </tr>
+                
+                <tr>
+                    <td>Power</td>
+                    <td>Battery Unplug Simulation</td>
+                    <td><span class="status-PASS">PASS</span></td>
+                    <td>Successfully simulated AC unplug</td>
+                </tr>
+                
+                <tr>
+                    <td>Touchscreen</td>
+                    <td>Input Device Listing</td>
+                    <td><span class="status-PASS">PASS</span></td>
+                    <td>Found registered touch/input devices</td>
+                </tr>
+                
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>
+        

@@ -1,0 +1,29 @@
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Logs & Error Reports
+*.log
+crash.log
+bugreport*.zip
+nohup.out
+
+# Auto-generated Test Reports
+# 如果希望把舊報告留存，但不想全部傳到 GitHub，可以取消註解底下這行
+reports/*.html
+
+# IDE & OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
