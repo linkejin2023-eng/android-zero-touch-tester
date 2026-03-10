@@ -8,16 +8,16 @@
 
 ## 📊 專案總體進度 (Project Status)
 
-![Progress](https://progress-bar.dev/60/?title=Overall&width=300)
+![Progress](https://progress-bar.dev/95/?title=Overall&width=300)
 
 | 開發階段 (Phase) | 狀態 | 進度百分比 | 包含模組與功能 | 最新更新日期 |
 | :--- | :---: | :---: | :--- | :--- |
 | **Phase 1: 核心框架與基底測試** | 🟢 完結 | **100%** | ADB 連線、螢幕控制、基礎音量控制 | 2026-03-06 |
 | **Phase 2: 進階功能自動化** | 🟢 完結 | **100%** | 相機 Intent、WiFi/BT連網、觸控模擬、NFC、GPS | 2026-03-06 |
-| **Phase 3: 使用者增強功能測試** | 🟡 進行中 | **0%** | 藍牙掃描清單、相機 JPG 存檔驗證、手電筒控制 | (開發中) |
-| **Phase 4: 深水區硬體與穩定性** | ⏳ 企劃中 | **0%** | WWAN (有/無 SIM 卡判定)、麥克風錄音、MP4 影片解碼、系統重啟穩定性 | (企劃中) |
-| **Phase 5: 企業級派發與 CI/CD** | ⏳ 企劃中 | **0%** | Email 總結報告發送、失敗日誌 (Logcat) ZIP 打包、重試機制 | (企劃中) |
-| **Feature: AOAv2 OOBE 盲打POC** | ⏳ 企劃中 | **0%** | 透過 USB 虛擬鍵盤解除 Setup Wizard 限制 | (研究完畢) |
+| **Phase 3: 使用者增強功能測試** | 🟢 完結 | **100%** | 藍牙掃描清單、相機 JPG 存檔驗證、手電筒控制 | 2026-03-10 |
+| **Phase 4: 深水區硬體與穩定性** | 🟢 完結 | **100%** | WWAN、麥克風錄音、影片解碼、Setup Wizard Bypass、螢幕喚醒穩定性 | 2026-03-10 |
+| **Phase 5: 企業級派發與 CI/CD** | 🟡 進行中 | **20%** | Email 總結報告發送、失敗日誌 (Logcat) ZIP 打包、重試機制 | 2026-03-10 |
+| **Feature: AOAv2 OOBE 盲打POC** | 🟢 完結 | **100%** | 透過 USB 虛擬鍵盤解除 Setup Wizard 限制 (已整合進 main.py) | 2026-03-10 |
 
 ---
 
