@@ -1,7 +1,7 @@
 import sys
 import logging
 import time
-from framework.adb_helper import wait_for_device, get_system_property
+from framework.adb_helper import wait_for_device, get_system_property, run_adb_cmd
 from framework.ui_automator import UIHelper
 from framework.report_generator import HTMLReportGenerator
 
@@ -15,6 +15,13 @@ def main():
         logging.error("No device detected. Did you run the Setup Wizard bypass script first?")
         sys.exit(1)
         
+    # Pro-actively bypass Setup Wizard for newly flashed builds
+    logging.info("Ensuring Setup Wizard is bypassed...")
+    run_adb_cmd("settings put global device_provisioned 1")
+    run_adb_cmd("settings put secure user_setup_complete 1")
+    run_adb_cmd("am start -c android.intent.category.HOME -a android.intent.action.MAIN")
+    time.sleep(2)
+
     start_time = time.time()
         
     # Initialize Reporter

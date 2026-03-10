@@ -2,6 +2,18 @@
 
 所有關於本專案的顯著變更將會記錄於此檔案中。
 
+## [2026-03-10] - Phase 3/4 穩定性優化與自動化強化
+### Added (新增)
+- **自動設置精靈跳過 (Setup Wizard Bypass)**：在 `main.py` 啟動時自動偵測並跳過裝置初始設置畫面，確保新燒錄 build 也能一鍵測試。
+- **手電筒萬用查找模式**：重構 `test_housekeeper.py`，改用「屬性窮舉查找」機制，完美支援英/簡中版不同資源 ID 與文字描述。
+
+### Fixed (修復)
+- **螢幕喚醒增強**：解決 `test_display.py` 在 Doze 模式下喚醒失敗的問題，改用 ADB `WAKEUP` Keyevent 並追加電源鍵備援路徑。
+- **相機權限阻塞解決**：強化彈窗清理邏輯，確保 "Allow" / "允許" 等各種語言權限按鈕在測試過程中被自動點擊。
+
+### Removed (移除)
+- 依照需求移除 `test_sensors_advanced.py` 中的 Game Launch 測試，改以 Sensor Service 健康檢查代替。
+
 ## [2026-03-09] - 技術探索與文檔重構
 ### Added (新增)
 - 建立專案管理所需之 `README.md` (包含進度儀表板)、`CHANGELOG.md` 及 `docs/` 技術文檔目錄。
