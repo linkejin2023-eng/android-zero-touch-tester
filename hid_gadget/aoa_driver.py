@@ -18,6 +18,10 @@ AOA_VID = 0x18D1
 AOA_PID_ACC = 0x2D00
 AOA_PID_ACC_ADB = 0x2D01
 
+# Trimble T70 specific IDs
+TRIMBLE_VID = 0x099e
+TRIMBLE_PIDS = [0x02b1, 0x02b5] # 02b1: Standard/OOBE, 02b5: ADB Enabled
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class AOADriver:
@@ -34,6 +38,15 @@ class AOADriver:
         if self.device and self.device.idProduct in [AOA_PID_ACC, AOA_PID_ACC_ADB]:
             logging.info(f"Device found in Accessory Mode: {hex(self.device.idVendor)}:{hex(self.device.idProduct)}")
             return True
+
+        # Prioritize Trimble devices if no specific VID/PID is given
+        if not vid and not pid:
+            logging.info("Prioritizing search for Trimble devices...")
+            for p in TRIMBLE_PIDS:
+                self.device = usb.core.find(idVendor=TRIMBLE_VID, idProduct=p)
+                if self.device:
+                    logging.info(f"Found Trimble device: {hex(TRIMBLE_VID)}:{hex(p)}")
+                    return True
 
         if vid and pid:
             logging.info(f"Looking for specific device {hex(vid)}:{hex(pid)}...")
@@ -168,6 +181,21 @@ KB_REPORT_DESC = bytes([
     0x95, 0x01, 0x75, 0x03, 0x91, 0x03, 0x95, 0x06,
     0x75, 0x08, 0x15, 0x00, 0x25, 0x65, 0x05, 0x07,
     0x19, 0x00, 0x29, 0x65, 0x81, 0x00, 0xc0
+])
+
+# HID Consumer Page Descriptor (16-bit Usage ID Array)
+CONSUMER_REPORT_DESC = bytes([
+    0x05, 0x0c,        # Usage Page (Consumer)
+    0x09, 0x01,        # Usage (Consumer Control)
+    0xa1, 0x01,        # Collection (Application)
+    0x15, 0x00,        #   Logical Minimum (0)
+    0x26, 0xff, 0x03,  #   Logical Maximum (0x03FF)
+    0x19, 0x00,        #   Usage Minimum (0)
+    0x2a, 0xff, 0x03,  #   Usage Maximum (0x03FF)
+    0x75, 0x10,        #   Report Size (16)
+    0x95, 0x01,        #   Report Count (1)
+    0x81, 0x00,        #   Input (Data, Ary, Abs)
+    0xc0               # End Collection
 ])
 
 if __name__ == "__main__":
