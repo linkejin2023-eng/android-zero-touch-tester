@@ -2,6 +2,20 @@
 
 所有關於本專案的顯著變更將會記錄於此檔案中。
 
+## [2026-03-11] - Phase 5 完結與全自動化 Zero-Touch 達成
+### Added (新增)
+- **AOAv2 100% 全自動 OOBE 繞過與 ADB 授權**：
+    - 實現了從 Factory Reset 狀態到連上 ADB 的全流程自動化。
+    - 支援 16-bit Consumer Page HID 指令 (Home/Back)。
+    - 實作了「斷線重連控制」，能自動處理切換 ADB 時的 USB PID (`02B1` -> `02B5`) 變更並回連 AOA Accessory 模式。
+    - 加入 AOA 元數據優化 (偽裝成 Google Keyboard)，成功消除「發現新配件」的系統提示彈窗。
+- **全流程驗證報告**：成功產出首份 100% 免接觸 (Zero-Touch) 的 Sanity Test HTML 報告，測試通過率達 97%。
+
+### Changed (變更)
+- 優化 `aoa_driver.py`，加入 `USBError` 全域保護機制，防止程式因裝置閃斷而崩潰。
+- 在 OOBE 繞過與 ADB 開啟流程之間加入 5 秒穩定延遲，解決裝置負載過重導致捷徑鍵 (Meta+I) 失效的問題。
+
+
 ## [2026-03-10] - Phase 3/4 穩定性優化與自動化強化
 ### Added (新增)
 - **自動設置精靈跳過 (Setup Wizard Bypass)**：在 `main.py` 啟動時自動偵測並跳過裝置初始設置畫面，確保新燒錄 build 也能一鍵測試。

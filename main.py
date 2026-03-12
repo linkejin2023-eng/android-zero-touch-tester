@@ -1,10 +1,10 @@
 import sys
 import logging
 import time
+import argparse
 from framework.adb_helper import wait_for_device, get_system_property, run_adb_cmd
 from framework.ui_automator import UIHelper
 from framework.report_generator import HTMLReportGenerator
-
 from framework.tests import test_display, test_audio, test_camera, test_connectivity, test_sensors_power
 from framework.tests import test_touch, test_sensors_advanced, test_housekeeper, test_buttons, test_nfc, test_gps
 
@@ -12,7 +12,7 @@ def main():
     logging.info("--- Starting Android Sanity Test Automation ---")
     
     if not wait_for_device(timeout=10):
-        logging.error("No device detected. Did you run the Setup Wizard bypass script first?")
+        logging.error("No device detected. Please ensure the device is connected and ADB is enabled.")
         sys.exit(1)
         
     # Pro-actively bypass Setup Wizard for newly flashed builds

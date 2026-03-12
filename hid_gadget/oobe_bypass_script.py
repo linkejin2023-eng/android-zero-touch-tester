@@ -41,63 +41,49 @@ class OOBEBypass:
     def press_key(self, keycode, modifier=KEY_NONE, duration=0.05):
         """Sends a standard keyboard key press and release event (HID ID 1)."""
         press_report = bytearray([modifier, 0, keycode, 0, 0, 0, 0, 0])
-        self.driver.send_hid_event(self.hid_kb_id, press_report)
+        if not self.driver.send_hid_event(self.hid_kb_id, press_report):
+            return False
         time.sleep(duration)
         
         release_report = bytearray([0, 0, 0, 0, 0, 0, 0, 0])
         self.driver.send_hid_event(self.hid_kb_id, release_report)
         time.sleep(duration)
+        return True
 
     def press_home(self, duration=0.05):
         """Sends a Consumer Page Home event (0x0223) - HID ID 2."""
         # 16-bit Usage ID in Little-Endian: 0x0223 -> [0x23, 0x02]
         press_report = bytearray([0x23, 0x02])
-        self.driver.send_hid_event(self.hid_consumer_id, press_report)
+        if not self.driver.send_hid_event(self.hid_consumer_id, press_report):
+            return False
         time.sleep(duration)
         
         # Release (Send 0x0000)
         release_report = bytearray([0x00, 0x00])
         self.driver.send_hid_event(self.hid_consumer_id, release_report)
         time.sleep(duration)
+        return True
 
     def press_back(self, duration=0.05):
         """Sends a Consumer Page Back event (0x0224) - HID ID 2."""
         # 16-bit Usage ID in Little-Endian: 0x0224 -> [0x24, 0x02]
         press_report = bytearray([0x24, 0x02])
-        self.driver.send_hid_event(self.hid_consumer_id, press_report)
+        if not self.driver.send_hid_event(self.hid_consumer_id, press_report):
+            return False
         time.sleep(duration)
         
         release_report = bytearray([0x00, 0x00])
         self.driver.send_hid_event(self.hid_consumer_id, release_report)
         time.sleep(duration)
+        return True
 
     def enable_adb_trimble(self):
         """Automates the full ADB enablement sequence including re-enumeration handling."""
         logging.info("Starting ADB Enablement sequence (Trimble T70)...")
         
-        # 1. Enter Settings (Win+I)
-        self.press_key(KEY_I, MOD_LMETA)
-        time.sleep(1)
-
-        # 2. Sequence based on user recording to reach Build Number and Tap 7 times
-        # Sequence: TABx17 -> ENTER -> TABx5 -> DOWNx5 -> TABx3 -> DOWNx7 -> ENTER -> MULTI_ENTER
-        # NOTE: Using loops to keep it readable
-        for _ in range(17): self.press_key(KEY_TAB)
-        for _ in range(17): self.press_key(KEY_DOWN) # Extra scrolls to be safe
-        self.press_key(KEY_ENTER)
-        time.sleep(1)
-        
-        for _ in range(5): self.press_key(KEY_TAB)
-        for _ in range(5): self.press_key(KEY_DOWN)
-        self.press_key(KEY_TAB, duration=0.1) # Mixed navigation
-        
-        # Open Developer Options / Find Build Number
-        # (Based on the user response, we assume the provided sequence reaches Build Number)
-        sequence = ["TAB"]*17 + ["ENTER"] + ["TAB"]*5 + ["DOWN"]*5 + ["TAB"]*3 + ["DOWN"]*7 + ["ENTER"] + ["MULTI_ENTER"]
-        # Wait, the user provided a very specific combined sequence. Let's use it exactly.
-        
+        # We start exactly from where the recorder left off (assuming Home Screen)
         hybrid_seq = [
-            "TAB", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", 
+            "SETTINGS", "TAB", "TAB", "TAB", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", 
             "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "ENTER", # Enters About Phone?
             "TAB", "TAB", "TAB", "TAB", "TAB", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", 
             "TAB", "TAB", "TAB", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "ENTER", # Build number?
@@ -109,17 +95,27 @@ class OOBEBypass:
 
         for cmd in hybrid_seq:
             try:
-                if cmd == "TAB": self.press_key(KEY_TAB)
+                if cmd == "SETTINGS":
+                    self.press_key(KEY_I, MOD_LMETA)
+                    time.sleep(1.5)
+                elif cmd == "TAB": self.press_key(KEY_TAB)
                 elif cmd == "ENTER": 
                     self.press_key(KEY_ENTER)
                     time.sleep(2) # Give UI time to react
-                elif cmd == "DOWN": self.press_key(KEY_DOWN)
-                elif cmd == "UP": self.press_key(KEY_UP)
+                elif cmd == "DOWN": 
+                    self.press_key(KEY_DOWN)
+                    time.sleep(0.2)
+                elif cmd == "UP": 
+                    self.press_key(KEY_UP)
+                    time.sleep(0.2)
                 elif cmd == "MULTI_ENTER": 
                     for _ in range(7):
                         self.press_key(KEY_ENTER)
                         time.sleep(0.1)
-                elif cmd == "SYS_BACK": self.press_back()
+                    time.sleep(1.0) # Delay to allow "You are now a developer" toast/transition
+                elif cmd == "SYS_BACK": 
+                    self.press_back()
+                    time.sleep(1.0) # Delay for back navigation transition
                 elif cmd == "SYS_HOME": self.press_home()
                 
                 logging.info(f"Executed: {cmd}")
@@ -132,22 +128,32 @@ class OOBEBypass:
         # 3. Handle Re-enumeration
         time.sleep(5) # Wait for device to re-appear with 02B5
         logging.info("Attempting to reconnect after ADB toggle...")
-        if self.driver.switch_to_accessory_mode():
-            self.driver.register_hid(1, KB_REPORT_DESC)
-            from aoa_driver import CONSUMER_REPORT_DESC
-            self.driver.register_hid(2, CONSUMER_REPORT_DESC)
-            
-            logging.info("Re-connected! Sending final 'Allow USB Debugging' sequence...")
-            # After re-enumeration, the 'Allow USB Debugging' dialog is visible
-            # User said: enter > tab > tab > enter(allow button)
-            self.press_key(KEY_ENTER)
-            time.sleep(1)
-            self.press_key(KEY_TAB)
-            self.press_key(KEY_TAB)
-            self.press_key(KEY_ENTER)
-            logging.info("ADB Enablement Complete.")
+        
+        # Explicitly search for the device again (PID changed!)
+        if self.driver.find_device():
+            if self.driver.switch_to_accessory_mode():
+                self.driver.register_hid(1, KB_REPORT_DESC)
+                from aoa_driver import CONSUMER_REPORT_DESC
+                self.driver.register_hid(2, CONSUMER_REPORT_DESC)
+                
+                logging.info("Re-connected! Sending final 'Allow USB Debugging' sequence...")
+                
+                # Sequence to click 'Allow' on the dialog
+                # Metadata fix in aoa_driver.py should prevent the "New Accessory" dialog
+                time.sleep(1)
+                
+                # Check each step, break if device disconnects (NoneType avoided by aoa_driver fix)
+                if not self.press_key(KEY_ENTER): return
+                time.sleep(1)
+                if not self.press_key(KEY_TAB): return
+                if not self.press_key(KEY_TAB): return
+                if not self.press_key(KEY_ENTER): return
+                
+                logging.info("ADB Enablement Complete.")
+            else:
+                logging.error("Failed to re-switch to Accessory Mode.")
         else:
-            logging.error("Failed to reconnect after ADB toggle.")
+            logging.error("Failed to find device after PID change.")
 
     def type_string(self, text):
         """Simple string typer (lowercase only for now)."""
@@ -193,8 +199,21 @@ class OOBEBypass:
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     driver = AOADriver()
-    if driver.find_android_device(vid=0x099E, pid=0x02B1):
+    # Search for Trimble devices (VID 0x099E, any of the PIDs like 02B1, 02B5, or already in ACC mode)
+    if driver.find_device(): # Uses the prioritized Trimble search we added to aoa_driver.py
         if driver.switch_to_accessory_mode():
             driver.register_hid(1, KB_REPORT_DESC)
+            from aoa_driver import CONSUMER_REPORT_DESC
+            driver.register_hid(2, CONSUMER_REPORT_DESC)
+            
             bypass = OOBEBypass(driver)
+            
+            # 啟動完整流程：先繞過 OOBE，再進入系統開啟 ADB
             bypass.bypass_trimble_oobe()
+            
+            logging.info("OOBE complete. Waiting 5s for system to stabilize before ADB enablement...")
+            time.sleep(5)
+            
+            bypass.enable_adb_trimble()
+            
+            logging.info("End-to-End sequence complete. Ready for Sanity Test.")

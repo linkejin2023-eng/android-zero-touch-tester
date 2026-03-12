@@ -103,12 +103,13 @@ def recorder():
             
         if key_cmd:
             sequence.append(key_cmd)
-            print(f"發送: {key_cmd}")
+            print(f"已記錄第 {len(sequence)} 個動作: [{key_cmd}]")
             
     print("\n--- 錄製完成 ---")
-    print("請將以下序列複製給我：")
+    print(f"總共記錄了 {len(sequence)} 個動作。")
+    print("請將以下序列完整複製給我：\n")
     print(" -> ".join(sequence))
-    print("----------------\n")
+    print("\n========================\n")
 
 if __name__ == "__main__":
     recorder()

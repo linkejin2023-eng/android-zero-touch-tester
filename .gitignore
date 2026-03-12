@@ -27,3 +27,10 @@ reports/*.html
 .idea/
 .DS_Store
 Thumbs.db
+
+# Release Candidate Images for Validation (Flash before official release)
+backup_image/
+
+# Unfinished / Temp Flash Work
+framework/flash_manager.py
+temp_extracted/

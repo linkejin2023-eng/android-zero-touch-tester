@@ -25,12 +25,12 @@ TRIMBLE_PIDS = [0x02b1, 0x02b5] # 02b1: Standard/OOBE, 02b5: ADB Enabled
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class AOADriver:
-    def __init__(self, manufacturer="Antigravity", model="QA-Keyboard", description="OOBE Bypass Tool", version="1.0", uri="http://example.com", serial="12345"):
+    def __init__(self, manufacturer="Google", model="Keyboard", description="USB HID Device", version="1.0", uri="", serial=""):
         self.metadata = [manufacturer, model, description, version, uri, serial]
         self.device = None
         self.handle = None
 
-    def find_android_device(self, vid=None, pid=None):
+    def find_device(self, vid=None, pid=None):
         """Finds the Android device based on VID/PID or common patterns."""
         # First, check if already in Accessory mode
         logging.info("Checking if device is already in Accessory Mode...")
@@ -157,6 +157,9 @@ class AOADriver:
     def send_hid_event(self, hid_id, report, retries=3):
         """Sends a HID event (report) to the Android device with retry logic."""
         for attempt in range(retries):
+            if not self.device:
+                logging.error("No device handle available for HID event.")
+                return False
             try:
                 self.device.ctrl_transfer(
                     usb.util.CTRL_TYPE_VENDOR | usb.util.CTRL_OUT,
@@ -164,6 +167,10 @@ class AOADriver:
                 )
                 return True
             except Exception as e:
+                # If device is gone, reset handle
+                if "[Errno 19]" in str(e) or "No such device" in str(e):
+                    self.device = None
+                
                 if attempt < retries - 1:
                     logging.warning(f"HID event failed (attempt {attempt+1}), retrying... Error: {e}")
                     time.sleep(0.1)
@@ -201,7 +208,7 @@ CONSUMER_REPORT_DESC = bytes([
 if __name__ == "__main__":
     driver = AOADriver()
     # Replace with the user's Trimble VID/PID
-    if driver.find_android_device(vid=0x099E, pid=0x02B1):
+    if driver.find_device(vid=0x099E, pid=0x02B1):
         if driver.switch_to_accessory_mode():
             driver.register_hid(1, KB_REPORT_DESC)
             logging.info("Driver ready. Test complete.")
