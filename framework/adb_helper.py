@@ -1,19 +1,22 @@
 import subprocess
 import time
 import logging
+from typing import Tuple, List
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-def run_adb_cmd(cmd: str, timeout: int = 15) -> tuple[int, str]:
+def run_adb_cmd(cmd: str, timeout: int = 15) -> Tuple[int, str]:
     """Runs an ADB shell command and returns (exit_code, output)"""
     full_cmd = f"adb shell {cmd}"
     try:
         logging.debug(f"Running ADB: {full_cmd}")
+        # Python 3.6 doesn't have capture_output=True or text=True
         result = subprocess.run(
             full_cmd, 
             shell=True, 
-            capture_output=True, 
-            text=True, 
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            universal_newlines=True,
             timeout=timeout
         )
         return result.returncode, result.stdout.strip()
@@ -29,7 +32,13 @@ def wait_for_device(timeout: int = 60) -> bool:
     logging.info(f"Waiting for ADB device (timeout={timeout}s)...")
     start = time.time()
     while time.time() - start < timeout:
-        result = subprocess.run("adb devices", shell=True, capture_output=True, text=True)
+        result = subprocess.run(
+            "adb devices", 
+            shell=True, 
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            universal_newlines=True
+        )
         lines = result.stdout.strip().split('\n')
         # Check if there is a device listed that is not offline/unauthorized
         devices = [line for line in lines[1:] if line.strip() and "device" in line and "offline" not in line and "unauthorized" not in line]

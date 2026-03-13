@@ -3,6 +3,7 @@ import zipfile
 import subprocess
 import logging
 import time
+from typing import Tuple, List
 from framework.adb_helper import wait_for_device
 
 class FlashManager:
@@ -25,15 +26,17 @@ class FlashManager:
             logging.error(f"Failed to extract ZIP: {e}")
             return False
 
-    def _run_local_cmd(self, cmd: str, cwd: str = "") -> tuple[int, str]:
+    def _run_local_cmd(self, cmd: str, cwd: str = "") -> Tuple[int, str]:
         """Runs a local shell command and returns (exit_code, output_combined)"""
         try:
             logging.debug(f"Running: {cmd} (cwd='{cwd}')")
+            # Python 3.6 compatibility: no capture_output or text
             result = subprocess.run(
                 cmd,
                 shell=True,
-                capture_output=True,
-                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                universal_newlines=True,
                 cwd=cwd if cwd else None
             )
             combined_output = (result.stdout + "\n" + result.stderr).strip()
