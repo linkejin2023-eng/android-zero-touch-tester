@@ -8,19 +8,61 @@ from framework.report_generator import HTMLReportGenerator
 from framework.tests import test_display, test_audio, test_camera, test_connectivity, test_sensors_power
 from framework.tests import test_touch, test_sensors_advanced, test_housekeeper, test_buttons, test_nfc, test_gps
 
+from framework.flash_manager import FlashManager
+
 def main():
+    parser = argparse.ArgumentParser(description="Android Sanity Test Automation Framework")
+    parser.add_argument("--flash", type=str, help="Path to firmware ZIP to flash before testing")
+    parser.add_argument("--oobe", action="store_true", help="Run only OOBE bypass and ADB enablement (manual debug)")
+    parser.add_argument("--sku", type=str, choices=["gms", "china"], default="gms", help="Product SKU type for OOBE sequence (default: gms)")
+    parser.add_argument("--skip-tests", action="store_true", help="Only flash/OOBE, skip tests")
+    args = parser.parse_args()
+
     logging.info("--- Starting Android Sanity Test Automation ---")
-    
-    if not wait_for_device(timeout=10):
-        logging.error("No device detected. Please ensure the device is connected and ADB is enabled.")
+
+    # --- Phase 0: Flashing ---
+    if args.flash:
+        logging.info(f"Flash requested with: {args.flash}")
+        fm = FlashManager(args.flash)
+        if not fm.flash():
+            logging.error("Flashing failed. Aborting.")
+            sys.exit(1)
+        args.oobe = True # Force OOBE bypass after flash
+
+    if args.oobe:
+        # After flashing or manual request, wait for device to boot into OOBE and bypass it
+        logging.info(f"Entering OOBE Bypass synchronization loop (SKU: {args.sku})...")
+        try:
+            from hid_gadget import run_oobe_bypass
+        except ImportError as e:
+            logging.error(f"Failed to import oobe_bypass_script: {e}")
+            sys.exit(1)
+            
+        if not run_oobe_bypass(sku=args.sku, timeout=300):
+            logging.error("OOBE Bypass failed or timed out.")
+            sys.exit(1)
+
+        if args.skip_tests:
+            logging.info("OOBE Bypass successful. Tests skipped as per --skip-tests flag.")
+            return
+
+    # --- Phase 1: Environment Readiness ---
+    # After bypass, ADB should be authorized and ready
+    if not wait_for_device(timeout=60):
+        # If skip-tests wasn't set, we expect ADB to be ready here
+        logging.error("No authorized ADB device detected after OOBE bypass.")
         sys.exit(1)
         
-    # Pro-actively bypass Setup Wizard for newly flashed builds
-    logging.info("Ensuring Setup Wizard is bypassed...")
+    # Pro-actively bypass Setup Wizard for newly flashed builds (via ADB as backup/second layer)
+    logging.info("Ensuring Setup Wizard is bypassed (ADB layer)...")
     run_adb_cmd("settings put global device_provisioned 1")
     run_adb_cmd("settings put secure user_setup_complete 1")
     run_adb_cmd("am start -c android.intent.category.HOME -a android.intent.action.MAIN")
     time.sleep(2)
+
+    if args.skip_tests:
+        logging.info("Tests skipped as per --skip-tests flag.")
+        return
 
     start_time = time.time()
         

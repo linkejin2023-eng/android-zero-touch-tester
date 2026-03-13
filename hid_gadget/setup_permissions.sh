@@ -6,9 +6,13 @@ RULES_FILE="/etc/udev/rules.d/51-android-aoa.rules"
 echo "Creating udev rules for AOAv2 at $RULES_FILE..."
 
 cat <<EOF | sudo tee $RULES_FILE
-# Trimble T70
+# Trimble T70 (Standard & OOBE)
 SUBSYSTEM=="usb", ATTR{idVendor}=="099e", ATTR{idProduct}=="02b1", MODE="0666", GROUP="plugdev"
-# Android Accessory Mode
+# Trimble T70 (ADB Enabled)
+SUBSYSTEM=="usb", ATTR{idVendor}=="099e", ATTR{idProduct}=="02b5", MODE="0666", GROUP="plugdev"
+# Fastboot Mode
+SUBSYSTEM=="usb", ATTR{idVendor}=="18d1", ATTR{idProduct}=="d00d", MODE="0666", GROUP="plugdev"
+# Android Accessory Mode (AOA)
 SUBSYSTEM=="usb", ATTR{idVendor}=="18d1", ATTR{idProduct}=="2d00", MODE="0666", GROUP="plugdev"
 SUBSYSTEM=="usb", ATTR{idVendor}=="18d1", ATTR{idProduct}=="2d01", MODE="0666", GROUP="plugdev"
 EOF

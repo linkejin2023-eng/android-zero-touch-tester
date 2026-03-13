@@ -1,5 +1,5 @@
 from oobe_bypass_script import OOBEBypass, KEY_TAB, KEY_ENTER, KEY_DOWN, KEY_UP, MOD_LMETA, KEY_LEFT, KEY_RIGHT, KEY_ESC, KEY_SPACE, KEY_I, KEY_N, KEY_D, KEY_H, KEY_BACKSPACE
-from aoa_driver import AOADriver, KB_REPORT_DESC
+from aoa_driver import AOADriver, KB_REPORT_DESC, CONSUMER_REPORT_DESC
 import logging
 import sys
 import tty
@@ -20,14 +20,12 @@ def getch():
 def recorder():
     logging.basicConfig(level=logging.INFO)
     driver = AOADriver()
-    if not driver.find_android_device(vid=0x099E, pid=0x02B1):
+    if not driver.find_device(vid=0x099E, pid=0x02B1):
         return
     
     if not driver.switch_to_accessory_mode():
         return
         
-    from oobe_bypass_script import KB_REPORT_DESC
-    from aoa_driver import CONSUMER_REPORT_DESC
     driver.register_hid(1, KB_REPORT_DESC)
     driver.register_hid(2, CONSUMER_REPORT_DESC)
     bypass = OOBEBypass(driver)

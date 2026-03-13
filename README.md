@@ -16,8 +16,10 @@
 | **Phase 2: 進階功能自動化** | 🟢 完結 | **100%** | 相機 Intent、WiFi/BT連網、觸控模擬、NFC、GPS | 2026-03-06 |
 | **Phase 3: 使用者增強功能測試** | 🟢 完結 | **100%** | 藍牙掃描清單、相機 JPG 存檔驗證、手電筒控制 | 2026-03-10 |
 | **Phase 4: 深水區硬體與穩定性** | 🟢 完結 | **100%** | WWAN、麥克風錄音、影片解碼、Setup Wizard Bypass、螢幕喚醒穩定性 | 2026-03-10 |
-| **Phase 5: 企業級派發與 CI/CD** | 🟢 完結 | **100%** | Email 總結報告發送、失敗日誌 (Logcat) ZIP 打包、自動化 ADB 授權流程 | 2026-03-11 |
-| **Feature: AOAv2 OOBE 盲打 & ADB 自動開啟** | 🟢 完結 | **100%** | 透過 USB 虛擬鍵盤解除 OOBE 並自動授權 ADB (Zero-Touch) | 2026-03-11 |
+| **Phase 5: 企業級派發與 CI/CD** | 🟡 暫停 | **60%** | Email 總結報告發送、失敗日誌 (Logcat) ZIP 打包 | 2026-03-13 |
+| **Feature: 自動化燒錄 (Flash) 模組** | 🟢 完結 | **100%** | 支援 ZIP 自動解壓、Fastboot 流程與燒錄後自動接續 OOBE | 2026-03-12 |
+| **Feature: 多 SKU (GMS/China) 支援** | 🟢 完結 | **100%** | 實作 `--sku` 參數與 China NAL 專用盲打序列與 ADB 授權優化 | 2026-03-13 |
+| **Phase 6: 跨電腦部署與相容性** | 🟡 進行中 | **50%** | 規劃 Python 3.6+ 回溯相容、環境診斷工具與 venv 部署流程 | 2026-03-13 |
 
 ---
 
@@ -34,13 +36,47 @@
 *   🔥 [**終極突破：零觸控 OOBE (ZERO_TOUCH_OOBE.md)**](docs/ZERO_TOUCH_OOBE.md) - 深入探討為何選擇 AOAv2 協定作為 Setup Wizard 封鎖下的唯一純軟體解答。
 
 ## ⚡ 快速開始 (Quick Start)
-1.  **環境準備**：請確認測試機已透過 USB 連接至電腦，且已手動開啟「開發者選項」中的「USB 偵錯」。
-2.  **安裝依賴**：
-    ```bash
-    pip3 install -r requirements.txt
-    ```
-3.  **執行測試**：
-    ```bash
-    python3 main.py
-    ```
-4.  **查看報告**：執行完畢後，HTML 測試報告將自動產生於 `reports/` 目錄中。
+
+### 1. 環境準備
+- 請確認測試機已透過 USB 連接至電腦。
+- **免 Sudo 權限設置** (僅需執行一次)：
+  ```bash
+  bash hid_gadget/setup_permissions.sh
+  # 執行後請重新拔插 USB 線以生效
+  ```
+
+### 2. 環境初始化與安裝依賴
+建議使用虛擬環境 (venv) 以確保系統環境純淨，避免套件衝突：
+
+```bash
+# A. 建立並啟動虛擬環境 (僅需執行一次)
+python3 -m venv .venv
+source .venv/bin/activate
+
+# B. 安裝必要依賴
+pip3 install -r requirements.txt
+```
+
+### 3. 執行測試
+```bash
+# 情境 A: 全自動 (燒錄 + 繞過 OOBE + 執行測試)
+python3 main.py --flash /path/to/fastboot.zip
+
+# 情境 B: China SKU 全自動 (燒錄 + 中國版 OOBE + 執行測試)
+python3 main.py --flash /path/to/fastboot.zip --sku china
+
+# 情境 C: 僅繞過 OOBE (不燒錄，僅執行 AOA 盲打與 ADB 授權)
+python3 main.py --oobe --sku china --skip-tests
+
+# 情境 D: 標準測試 (裝置已在 Home Screen 且開啟 ADB)
+python3 main.py
+```
+
+### 4. 參數說明
+- `--flash <path>`: 指定燒錄包路徑，支援自動解壓縮。
+- `--oobe`: 啟動 AOA HID 盲打流程，自動解除 OOBE 並開啟 ADB。
+- `--sku <gms|china>`: 指定產品 SKU（預設為 `gms`）。會切換不同的 OOBE 盲打序列與 ADB 授權路徑。
+- `--skip-tests`: 僅執行燒錄與 OOBE 解除，完成後立即退出，不執行功能測試。
+
+### 5. 查看報告
+執行完畢後，HTML 測試報告將自動產生於 `reports/` 目錄中。

@@ -1,4 +1,7 @@
-from aoa_driver import AOADriver, KB_REPORT_DESC
+try:
+    from .aoa_driver import AOADriver, KB_REPORT_DESC, CONSUMER_REPORT_DESC
+except (ImportError, ValueError):
+    from aoa_driver import AOADriver, KB_REPORT_DESC, CONSUMER_REPORT_DESC
 import time
 import logging
 
@@ -77,27 +80,44 @@ class OOBEBypass:
         time.sleep(duration)
         return True
 
-    def enable_adb_trimble(self):
+    def enable_adb_trimble(self, sku="gms"):
         """Automates the full ADB enablement sequence including re-enumeration handling."""
-        logging.info("Starting ADB Enablement sequence (Trimble T70)...")
+        logging.info(f"Starting ADB Enablement sequence (Trimble T70, SKU={sku})...")
         
         # We start exactly from where the recorder left off (assuming Home Screen)
         hybrid_seq = [
-            "SETTINGS", "TAB", "TAB", "TAB", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", 
+            "SETTINGS", 
+        ]
+        
+        # China SKU needs extra steps to dismiss initial agreement/prompt when opening settings
+        if sku == "china":
+            hybrid_seq.extend(["TAB", "TAB", "ENTER"])
+            
+        # Toggle ADB: China SKU has 6 DOWNs (GMS has 7)
+        adb_toggle_downs = ["DOWN"] * (6 if sku == "china" else 7)
+        
+        # Second set of DOWNs to reach the final toggle/confirmation: China SKU has 12 (GMS has 14)
+        final_toggle_downs = ["DOWN"] * (12 if sku == "china" else 14)
+        
+        hybrid_seq.extend([
+            "TAB", "TAB", "TAB", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", 
             "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "ENTER", # Enters About Phone?
             "TAB", "TAB", "TAB", "TAB", "TAB", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", 
             "TAB", "TAB", "TAB", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "ENTER", # Build number?
             "MULTI_ENTER", "SYS_BACK", "UP", "ENTER", # Dev options
-            "TAB", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "ENTER", # Toggle ADB
-            "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB",
-            "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "ENTER", "TAB", "TAB", "ENTER"
-        ]
+            "TAB"
+        ] + adb_toggle_downs + [
+            "ENTER", # Toggle ADB
+            "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB"
+        ] + final_toggle_downs + [
+            "ENTER", "TAB", "TAB", "ENTER"
+        ])
 
         for cmd in hybrid_seq:
             try:
                 if cmd == "SETTINGS":
                     self.press_key(KEY_I, MOD_LMETA)
-                    time.sleep(1.5)
+                    time.sleep(2.0) # Slightly more delay for China SKU settings load
                 elif cmd == "TAB": self.press_key(KEY_TAB)
                 elif cmd == "ENTER": 
                     self.press_key(KEY_ENTER)
@@ -133,23 +153,33 @@ class OOBEBypass:
         if self.driver.find_device():
             if self.driver.switch_to_accessory_mode():
                 self.driver.register_hid(1, KB_REPORT_DESC)
-                from aoa_driver import CONSUMER_REPORT_DESC
                 self.driver.register_hid(2, CONSUMER_REPORT_DESC)
                 
                 logging.info("Re-connected! Sending final 'Allow USB Debugging' sequence...")
                 
-                # Sequence to click 'Allow' on the dialog
-                # Metadata fix in aoa_driver.py should prevent the "New Accessory" dialog
-                time.sleep(1)
+                def is_adb_authorized():
+                    try:
+                        import subprocess
+                        out = subprocess.check_output(["adb", "devices"]).decode()
+                        return "DBB123456789\tdevice" in out or "\tdevice" in out
+                    except:
+                        return False
+
+                # Try a few times in case the dialog is slow, but stop if authorized
+                for attempt in range(3):
+                    if is_adb_authorized():
+                        logging.info("ADB already authorized! Skipping further HID inputs.")
+                        break
+                        
+                    logging.info(f"Authorization attempt {attempt + 1}...")
+                    self.press_key(KEY_ENTER) # Dismiss focus
+                    time.sleep(0.5)
+                    self.press_key(KEY_TAB)
+                    self.press_key(KEY_TAB)
+                    self.press_key(KEY_ENTER)
+                    time.sleep(3) # Delay to allow ADB state change
                 
-                # Check each step, break if device disconnects (NoneType avoided by aoa_driver fix)
-                if not self.press_key(KEY_ENTER): return
-                time.sleep(1)
-                if not self.press_key(KEY_TAB): return
-                if not self.press_key(KEY_TAB): return
-                if not self.press_key(KEY_ENTER): return
-                
-                logging.info("ADB Enablement Complete.")
+                logging.info("ADB Enablement Step Finished.")
             else:
                 logging.error("Failed to re-switch to Accessory Mode.")
         else:
@@ -165,20 +195,32 @@ class OOBEBypass:
                 self.press_key(KEY_SPACE)
             time.sleep(0.05)
 
-    def bypass_trimble_oobe(self):
-        logging.info("Starting OOBE Bypass sequence for Trimble T70 (Android 15)...")
+    def bypass_gms_oobe(self):
+        logging.info("Starting GMS OOBE Bypass sequence for Trimble T70 (Android 15)...")
         
-        # Final hybrid sequence from user
+        # Optimized sequence for GMS stability
         sequence = [
-            "TAB", "TAB", "TAB", "ENTER", 
-            "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "ENTER", 
-            "TAB", "TAB", "ENTER", 
-            "TAB", "TAB", "TAB", "TAB", "ENTER", 
-            "TAB", "TAB", "TAB", "TAB", "ENTER", 
-            "TAB", "TAB", "ENTER", 
-            "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "ENTER"
+            "TAB", "TAB", "TAB", "ENTER", # Welcome screen
+            "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "ENTER", # Wi-Fi Skip
+            "TAB", "TAB", "ENTER", # Offline setup confirmation
+            "TAB", "TAB", "TAB", "TAB", "ENTER", # Date & Time page
+            "SYS_BACK", "TAB", "ENTER", # PIN Screen (Back to close keyboard, Tab to Skip button, Enter)
+            "TAB", "TAB", "ENTER", # Skip anyway confirmation dialog
+            "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "ENTER" # Google Services
         ]
+        self._execute_sequence(sequence)
+
+    def bypass_china_oobe(self):
+        logging.info("Starting China SKU OOBE Bypass sequence for Trimble T70...")
         
+        # Sequence provided by user for China SKU
+        sequence = [
+            "TAB", "TAB", "ENTER", # Welcome screen / Language?
+            "TAB", "TAB", "TAB", "TAB", "TAB", "ENTER" # China specific Skip flow
+        ]
+        self._execute_sequence(sequence)
+
+    def _execute_sequence(self, sequence):
         # 1. Home / Reset to ensure starting from scratch
         self.press_key(KEY_NONE, MOD_LMETA) 
         time.sleep(2)
@@ -186,34 +228,53 @@ class OOBEBypass:
         for step in sequence:
             if step == "TAB":
                 self.press_key(KEY_TAB)
-                time.sleep(0.4)
+                time.sleep(0.8)
             elif step == "ENTER":
                 self.press_key(KEY_ENTER)
-                time.sleep(2.0) # 2s delay after Enter
+                time.sleep(2.5)
             elif step == "DOWN":
                 self.press_key(KEY_DOWN)
-                time.sleep(0.15)
+                time.sleep(0.8)
+            elif step == "SYS_BACK":
+                self.press_back()
+                time.sleep(1.0)
         
-        logging.info("OOBE Sequence complete. Please check if device reached Home screen.")
+        logging.info("OOBE Sequence complete.")
+
+def run_oobe_bypass(sku="gms", timeout=300):
+    """Wait for device to appear and then run the OOBE bypass + ADB enable sequence."""
+    logging.info(f"Waiting for device to appear on USB (timeout={timeout}s, SKU={sku})...")
+    start = time.time()
+    driver = AOADriver()
+    
+    while time.time() - start < timeout:
+        if driver.find_device():
+            logging.info("Device detected! Starting AOA handshake...")
+            if driver.switch_to_accessory_mode():
+                driver.register_hid(1, KB_REPORT_DESC)
+                driver.register_hid(2, CONSUMER_REPORT_DESC)
+                
+                bypass = OOBEBypass(driver)
+                logging.info(f"Starting OOBE Bypass for SKU: {sku}...")
+                if sku == "china":
+                    bypass.bypass_china_oobe()
+                else:
+                    bypass.bypass_gms_oobe()
+                
+                logging.info("Waiting 5s for system to stabilize...")
+                time.sleep(5)
+                
+                logging.info("Starting ADB Enablement...")
+                bypass.enable_adb_trimble(sku=sku)
+                return True
+            else:
+                logging.warning("Handshake failed, retrying...")
+        
+        time.sleep(5) # Poll USB every 5s
+    
+    logging.error("OOBE Bypass failed: Device did not appear or handshake failed.")
+    return False
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    driver = AOADriver()
-    # Search for Trimble devices (VID 0x099E, any of the PIDs like 02B1, 02B5, or already in ACC mode)
-    if driver.find_device(): # Uses the prioritized Trimble search we added to aoa_driver.py
-        if driver.switch_to_accessory_mode():
-            driver.register_hid(1, KB_REPORT_DESC)
-            from aoa_driver import CONSUMER_REPORT_DESC
-            driver.register_hid(2, CONSUMER_REPORT_DESC)
-            
-            bypass = OOBEBypass(driver)
-            
-            # 啟動完整流程：先繞過 OOBE，再進入系統開啟 ADB
-            bypass.bypass_trimble_oobe()
-            
-            logging.info("OOBE complete. Waiting 5s for system to stabilize before ADB enablement...")
-            time.sleep(5)
-            
-            bypass.enable_adb_trimble()
-            
-            logging.info("End-to-End sequence complete. Ready for Sanity Test.")
+    run_oobe_bypass()

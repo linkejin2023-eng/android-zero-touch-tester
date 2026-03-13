@@ -32,5 +32,4 @@ Thumbs.db
 backup_image/
 
 # Unfinished / Temp Flash Work
-framework/flash_manager.py
 temp_extracted/

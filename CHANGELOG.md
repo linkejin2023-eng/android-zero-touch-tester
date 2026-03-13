@@ -1,49 +1,31 @@
-# 更新日誌 (Changelog)
+# Changelog
 
 所有關於本專案的顯著變更將會記錄於此檔案中。
 
-## [2026-03-11] - Phase 5 完結與全自動化 Zero-Touch 達成
+## [2026-03-13] - 架構優化、多 SKU 支援與跨電腦部署規劃
 ### Added (新增)
-- **AOAv2 100% 全自動 OOBE 繞過與 ADB 授權**：
-    - 實現了從 Factory Reset 狀態到連上 ADB 的全流程自動化。
-    - 支援 16-bit Consumer Page HID 指令 (Home/Back)。
-    - 實作了「斷線重連控制」，能自動處理切換 ADB 時的 USB PID (`02B1` -> `02B5`) 變更並回連 AOA Accessory 模式。
-    - 加入 AOA 元數據優化 (偽裝成 Google Keyboard)，成功消除「發現新配件」的系統提示彈窗。
-- **全流程驗證報告**：成功產出首份 100% 免接觸 (Zero-Touch) 的 Sanity Test HTML 報告，測試通過率達 97%。
+- **多 SKU 支援正式實作**：
+    - 引進 `--sku <gms|china>` 參數，動態切換 AOA HID 盲打序列。
+    - 實作 China SKU (NAL) 專用 OOBE 跳過邏輯與 ADB 授權路徑調校。
+- **跨電腦部署規劃 (進行中)**：
+    - 生成 `requirements.txt` 與環境診斷工具 `check_env.py`。
+    - 撰寫 `deployment_plan.md` 與安全性評估報告。
+    - **Legacy Compatibility**：規劃將核心代碼回溯至 Python 3.6+ 相容語法以適應公司電腦。
 
 ### Changed (變更)
-- 優化 `aoa_driver.py`，加入 `USBError` 全域保護機制，防止程式因裝置閃斷而崩潰。
-- 在 OOBE 繞過與 ADB 開啟流程之間加入 5 秒穩定延遲，解決裝置負載過重導致捷徑鍵 (Meta+I) 失效的問題。
+- **旗標邏輯修正**：優化 `--skip-tests` 邏輯，解決手動除錯模式下的 ADB 超時報錯。
+- **README 更新**：加入虛擬環境 (venv) 初始化說明與多 SKU 指令範例。
 
-
-## [2026-03-10] - Phase 3/4 穩定性優化與自動化強化
+## [2026-03-12] - 自動化燒錄流程整合與穩定性達成
 ### Added (新增)
-- **自動設置精靈跳過 (Setup Wizard Bypass)**：在 `main.py` 啟動時自動偵測並跳過裝置初始設置畫面，確保新燒錄 build 也能一鍵測試。
-- **手電筒萬用查找模式**：重構 `test_housekeeper.py`，改用「屬性窮舉查找」機制，完美支援英/簡中版不同資源 ID 與文字描述。
-
-### Fixed (修復)
-- **螢幕喚醒增強**：解決 `test_display.py` 在 Doze 模式下喚醒失敗的問題，改用 ADB `WAKEUP` Keyevent 並追加電源鍵備援路徑。
-- **相機權限阻塞解決**：強化彈窗清理邏輯，確保 "Allow" / "允許" 等各種語言權限按鈕在測試過程中被自動點擊。
-
-### Removed (移除)
-- 依照需求移除 `test_sensors_advanced.py` 中的 Game Launch 測試，改以 Sensor Service 健康檢查代替。
-
-## [2026-03-09] - 技術探索與文檔重構
-### Added (新增)
-- 建立專案管理所需之 `README.md` (包含進度儀表板)、`CHANGELOG.md` 及 `docs/` 技術文檔目錄。
-- 確立 Phase 3 開發目標 (藍牙設備掃描、相機 JPG 存檔驗證、手電筒硬體控制)。
-- 擴增 Phase 4 (WWAN 無卡/有卡雙情境檢測、麥克風錄音、影片硬解、重啟穩定性) 與 Phase 5 (SMTP Email 寄發與 Logcat 打包整合) 藍圖。
-- 完成 Setup Wizard 突破性研究，確立 AOAv2 HID 免 Root / 免特製硬體的合法軟體後門解法。
+- **自動化燒錄模組 (`FlashManager`)**：實作 ZIP 韌體包自動解壓與 Fastboot 燒錄流程。
+- **燒錄與 OOBE 連接**：支援在燒錄完成後自動轉入 AOA HID 盲打模式。
 
 ### Changed (變更)
-- 依據終端測試設備與網路限制，自未來規劃中**剔除**：SD 卡掛載測試 (無卡槽)、震動馬達測試 (無硬體元件)、通訊軟體網路推播 (權限網域阻擋)。改以單純 Email 發送報告。
+- **系統權限調校**：移除 `flash_manager` 內的 `sudo` 依賴，改用 `udev` 規則管理權限。
+- **ADB 監控優化**：在授權成功後立即結束 PID 切換等待。
 
-## [2026-03-06] - Phase 2 完結與全自動化達標
+## [2026-03-11] - 基礎 Sanity 測試框架完結
 ### Added (新增)
-- 導入 Phase 2 進階測試模組：`test_touch.py`, `test_sensors_advanced.py`, `test_housekeeper.py`, `test_buttons.py`, `test_nfc.py`, `test_gps.py`。
-- 實現 29 項 Android Sanity 測試全自動化 (耗時約 82 秒)。
-
-### Fixed (修復)
-- 解決 `test_camera.py` 因 `settings.intelligence` (選擇相機 App) 彈出窗導致的 UIAutomator 卡死問題。改為被動認可 Intent Resolver 的存在即為 Pass。
-- 修復 `test_connectivity.py` 中 WiFi 連線後 DHCP 取號超時 (Timeout) 導致誤判 Failed 的問題，將等候時間延長至 15 秒。
-- 將 LED 測試從讀取 `/sys/class/leds/` (User Build 權限阻擋) 更改為解析 `dumpsys lights` 服務狀態。
+- 完成 29+ 台手機功能測試自動化（包含：相機、通訊、音訊、感測器等）。
+- 自動化 HTML 測試報告生成引擎。
