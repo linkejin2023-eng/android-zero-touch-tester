@@ -39,11 +39,22 @@ def wait_for_device(timeout: int = 60) -> bool:
             stderr=subprocess.PIPE,
             universal_newlines=True
         )
+        # Fix: Ensure we don't treat "command not found" as a device
+        if "command not found" in result.stderr or result.returncode == 127:
+            logging.debug("System 'adb' not found in PATH.")
+            # We don't return False here yet, just in case a local one is provided later
+        
         lines = result.stdout.strip().split('\n')
         # Check if there is a device listed that is not offline/unauthorized
-        devices = [line for line in lines[1:] if line.strip() and "device" in line and "offline" not in line and "unauthorized" not in line]
+        # Refined regex-like check: must have a serial followed by 'device' keyword
+        devices = []
+        for line in lines[1:]:
+            parts = line.split()
+            if len(parts) >= 2 and parts[1] == "device":
+                devices.append(parts[0])
+        
         if devices:
-            logging.info("Device connected.")
+            logging.info(f"Device connected: {devices[0]}")
             return True
         time.sleep(2)
     logging.error("No authorized ADB device found.")

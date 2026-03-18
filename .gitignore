@@ -1,3 +1,9 @@
+# AI Agent & Internal Skills
+.agent/
+.agents/
+.gemini/
+skills-lock.json
+
 # Python Cache
 __pycache__/
 *.py[cod]

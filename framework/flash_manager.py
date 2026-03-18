@@ -12,6 +12,7 @@ class FlashManager:
     def __init__(self, zip_path: str):
         self.zip_path = os.path.abspath(zip_path)
         self.extract_dir = os.path.dirname(self.zip_path)
+        self.fastboot_bin = "fastboot" # Default to system PATH
         logging.info(f"FlashManager initialized with ZIP: {self.zip_path}")
 
     def extract_firmware(self) -> bool:
@@ -50,10 +51,23 @@ class FlashManager:
         logging.info(f"Waiting for Fastboot device (timeout={timeout}s)...")
         start = time.time()
         while time.time() - start < timeout:
-            code, out = self._run_local_cmd("fastboot devices")
-            if out.strip():
-                logging.info(f"Fastboot device detected: {out.split()[0]}")
+            # Check if command exists first to avoid misinterpreting error messages
+            code, out = self._run_local_cmd(f"{self.fastboot_bin} devices")
+            
+            # Robust detection: must find a line with '<serial>\tfastboot'
+            devices = []
+            for line in out.split('\n'):
+                parts = line.split()
+                if len(parts) >= 2 and parts[1].strip() == "fastboot":
+                    devices.append(parts[0])
+            
+            if devices:
+                logging.info(f"Fastboot device detected: {devices[0]}")
                 return True
+            
+            if "not found" in out or code == 127:
+                logging.debug(f"Target binary '{self.fastboot_bin}' not found yet.")
+                
             time.sleep(2)
         logging.error("No Fastboot device found.")
         return False
@@ -86,6 +100,14 @@ class FlashManager:
             logging.error(f"Sanity Error: fastboot.bash not found anywhere in {self.extract_dir}")
             return False
 
+        # --- SETUP LOCAL BINARIES ---
+        # If the firmware package contains a local fastboot binary, use it!
+        local_fb = os.path.join(bash_dir, "fastboot")
+        if os.path.exists(local_fb):
+            logging.info(f"Found local fastboot binary at: {local_fb}. Prioritizing it.")
+            self._run_local_cmd(f"chmod +x {local_fb}")
+            self.fastboot_bin = local_fb # Switch to local path
+
         # 2. Check Connection
         logging.info("Checking if device is connected (ADB or Fastboot)...")
         in_fastboot = self.wait_for_fastboot(timeout=5)
@@ -98,6 +120,7 @@ class FlashManager:
         # 3. Reboot to Bootloader (if needed)
         if in_adb:
             logging.info("Device in ADB mode, rebooting to bootloader...")
+            # Note: adb is still assumed to be in path or handled separately
             self._run_local_cmd("adb reboot bootloader")
             if not self.wait_for_fastboot():
                 return False
@@ -106,7 +129,7 @@ class FlashManager:
         
         # 4. OEM Unlock (Optional but usually needed)
         logging.info("Unlocking OEM: Trimble-Thorpe")
-        code, out = self._run_local_cmd("fastboot oem unlock Trimble-Thorpe")
+        code, out = self._run_local_cmd(f"{self.fastboot_bin} oem unlock Trimble-Thorpe")
         if code != 0:
             logging.warning(f"OEM Unlock might have failed or already unlocked: {out}")
 
@@ -116,14 +139,8 @@ class FlashManager:
         # Ensure script is executable
         self._run_local_cmd(f"chmod +x {bash_script}")
         
-        # Ensure the 'fastboot' binary in the same directory is also executable
-        fastboot_bin = os.path.join(bash_dir, "fastboot")
-        if os.path.exists(fastboot_bin):
-            self._run_local_cmd(f"chmod +x {fastboot_bin}")
-
         # Optimization: Remove 'sudo ' from the script internally to avoid 
         # interactive password prompts or environment issues. 
-        # We do this even if not currently root, as long as udev rules are set.
         try:
             with open(bash_script, 'r') as f:
                 content = f.read()
@@ -147,7 +164,7 @@ class FlashManager:
 
         # 7. Reboot
         logging.info("Rebooting device...")
-        self._run_local_cmd("fastboot reboot")
+        self._run_local_cmd(f"{self.fastboot_bin} reboot")
 
         logging.info("Fastboot reboot command sent. Returning to main to handle OOBE bypass.")
         return True
