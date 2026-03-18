@@ -45,10 +45,18 @@
   # 執行後請重新拔插 USB 線以生效
   ```
 
-### 🚀 企業環境部署 (推薦方案)
-針對公司內部 Python 3.6 或無法全域安裝指令的環境，推薦使用 **Portable Python** 方案：
+### 🚀 受限環境部署 (推荐方案)
+針對舊版系統 (Python 3.6) 或無法全域安裝指令的受限環境，推薦使用 **Portable Python** 方案：
 
-1. **取得現代引擎**：下載 [astral-sh/python-build-standalone](https://github.com/astral-sh/python-build-standalone/releases/tag/20240107) 並解壓至 `~/python`。
+1. **取得現代引擎**：
+   ```bash
+   # 下載 Python 3.11 Standalone 引擎
+   wget "https://github.com/astral-sh/python-build-standalone/releases/download/20240107/cpython-3.11.7%2B20240107-x86_64-unknown-linux-gnu-install_only.tar.gz" -O cpython-3.11-portable.tar.gz
+
+   # 解壓至專屬目錄
+   mkdir -p ~/python
+   tar -xvf cpython-3.11-portable.tar.gz -C ~/python --strip-components=1
+   ```
 2. **建立虛擬環境**：
    ```bash
    ~/python/bin/python3 -m venv .venv
