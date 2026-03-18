@@ -19,7 +19,7 @@
 | **Phase 5: 企業級派發與 CI/CD** | 🟡 暫停 | **60%** | Email 總結報告發送、失敗日誌 (Logcat) ZIP 打包 | 2026-03-13 |
 | **Feature: 自動化燒錄 (Flash) 模組** | 🟢 完結 | **100%** | 支援 ZIP 自動解壓、Fastboot 流程與燒錄後自動接續 OOBE | 2026-03-12 |
 | **Feature: 多 SKU (GMS/China) 支援** | 🟢 完結 | **100%** | 實作 `--sku` 參數與 China NAL 專用盲打序列與 ADB 授權優化 | 2026-03-13 |
-| **Phase 6: 跨電腦部署與相容性** | 🟡 進行中 | **50%** | 規劃 Python 3.6+ 回溯相容、環境診斷工具與 venv 部署流程 | 2026-03-13 |
+| **Phase 6: 跨電腦部署與相容性** | 🟢 完結 | **100%** | 實作 Portable Python 3.11 部署方案、本地指令自動偵測與 venv 隔離 | 2026-03-18 |
 
 ---
 
@@ -45,19 +45,21 @@
   # 執行後請重新拔插 USB 線以生效
   ```
 
-### 2. 環境初始化與安裝依賴
-建議使用虛擬環境 (venv) 以確保系統環境純淨，避免套件衝突：
+### 🚀 企業環境部署 (推薦方案)
+針對公司內部 Python 3.6 或無法全域安裝指令的環境，推薦使用 **Portable Python** 方案：
 
-```bash
-# A. 建立並啟動虛擬環境 (僅需執行一次)
-python3 -m venv .venv
-source .venv/bin/activate
+1. **取得現代引擎**：下載 [astral-sh/python-build-standalone](https://github.com/astral-sh/python-build-standalone/releases/tag/20240107) 並解壓至 `~/python`。
+2. **建立虛擬環境**：
+   ```bash
+   ~/python/bin/python3 -m venv .venv
+   source .venv/bin/activate
+   pip install -r requirements.txt
+   ```
+3. **指令自動適配**：本工具會自動優先偵測 `backup_image/` 資料夾內的 `fastboot` 指令，無需手動配置系統 PATH。
 
-# B. 安裝必要依賴
-pip3 install -r requirements.txt
-```
+---
 
-### 3. 執行測試
+### 🛠️ CLI 參數說明
 ```bash
 # 情境 A: 全自動 (燒錄 + 繞過 OOBE + 執行測試)
 python3 main.py --flash /path/to/fastboot.zip
