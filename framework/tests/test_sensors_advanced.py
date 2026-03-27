@@ -1,57 +1,89 @@
 import time
 import logging
+import re
+import math
 from framework.adb_helper import run_adb_cmd
 
+def stdev(data):
+    n = len(data)
+    if n <= 1: return 0.0
+    mean = sum(data) / n
+    variance = sum((x - mean) ** 2 for x in data) / (n - 1)
+    return math.sqrt(variance)
+
 def run_tests(ui, reporter):
-    logging.info("Running Advanced Sensor Tests...")
+    logging.info("Running Advanced Sensor Tests (Static Entropy Analysis)...")
     
-    # Advanced Sensors (Dynamic)
-    def get_latest_sensor_event(name_filter):
+    def get_sensor_events(name_filter):
         _, out = run_adb_cmd("dumpsys sensorservice")
-        blocks = []
-        current_block = []
-        import re
-        header_re = re.compile(r'^[a-zA-Z0-9_ ]+ \(handle=0x')
+        events = []
+        recording = False
+        
         for line in out.splitlines():
-            if header_re.match(line):
-                if current_block: blocks.append('\n'.join(current_block))
-                current_block = [line]
-            else:
-                current_block.append(line)
-        if current_block: blocks.append('\n'.join(current_block))
-            
-        for block in blocks:
-            header = block.split('\n')[0]
-            if name_filter.lower() in header.lower():
-                if "last 10 events" in block:
-                    lines = block.split('\n')
-                    latest_data = None
-                    history_found = False
-                    for line in lines:
-                        if "last 10 events" in line: history_found = True
-                        if history_found and "(" in line and ")" in line and "," in line:
-                            data = line.split(")")[-1].strip()
-                            if data.count(',') >= 2: latest_data = data
-                    if latest_data: return latest_data
-        return None
+            # Trigger recording when we see the history header for our target sensor
+            if "last" in line.lower() and "events" in line.lower():
+                if name_filter.lower() in line.lower():
+                    recording = True
+                else:
+                    recording = False
+                continue
+                
+            if recording:
+                if ")" in line and "," in line:
+                    data_str = line.split(")")[-1]
+                    try:
+                        parts = data_str.split(",")
+                        if len(parts) >= 3:
+                            vals = [float(p.strip()) for p in parts[:3]]
+                            events.append(vals)
+                    except ValueError:
+                        pass
+        return events
 
     try:
-        logging.info("Sampling Magnetometer (T0)...")
-        mag_t0 = get_latest_sensor_event("Magnetometer") or get_latest_sensor_event("Magnetic")
-        
+        # Give sensor driver a moment to collect data
         time.sleep(2)
         
-        logging.info("Sampling Magnetometer (T1)...")
-        mag_t1 = get_latest_sensor_event("Magnetometer") or get_latest_sensor_event("Magnetic")
+        sensors_to_test = {
+            "Accelerometer": ("Accelerometer", "lsm6dst", "Accelerometer"),
+            "Gyroscope": ("Gyroscope", "lsm6dst", "Gyroscope"),
+            "e-Compass": ("Magnetometer", "Magnetic Field", "GeoMag")
+        }
         
-        if mag_t0 and mag_t1:
-            if mag_t0 != mag_t1:
-                reporter.add_result("Sensors", "e-Compass (Dynamic)", True, f"Verified: Magnetic field changing ({mag_t1})")
+        for ui_name, keywords in sensors_to_test.items():
+            logging.info(f"Analyzing {ui_name} Entropy...")
+            
+            # Try to get events using the primary keyword
+            events = get_sensor_events(keywords[0]) or get_sensor_events(keywords[1]) or get_sensor_events(keywords[2])
+            
+            if events and len(events) >= 3:
+                x_vals = [e[0] for e in events]
+                y_vals = [e[1] for e in events]
+                z_vals = [e[2] for e in events]
+                
+                total_entropy = stdev(x_vals) + stdev(y_vals) + stdev(z_vals)
+                
+                # Even on a flat table, noise guarantees stdev > 0.0001
+                if total_entropy > 0.0001:
+                    reporter.add_result("Sensors", f"{ui_name} (Entropy)", True, 
+                                        f"Driver alive. Entropy variance: {total_entropy:.5f}",
+                                        procedure="Analyze standard deviation of last 10 dumpsys events",
+                                        pass_criteria="Entropy > 0.0001")
+                else:
+                    reporter.add_result("Sensors", f"{ui_name} (Entropy)", False, 
+                                        f"Driver frozen. Exact 0 variance across {len(events)} events. Sensor is likely dead.",
+                                        procedure="Analyze standard deviation", pass_criteria="Entropy > 0.0001")
             else:
-                reporter.add_result("Sensors", "e-Compass (Dynamic)", False, f"Failed: Data frozen ({mag_t1}). Ensure device is rotating.")
-        else:
-            code, out = run_adb_cmd("dumpsys sensorservice")
-            has_mag = any(k in out for k in ["Magnetometer", "Magnetic Field", "GeoMag"])
-            reporter.add_result("Sensors", "e-Compass (Presence)", has_mag, "Driver detected but no live events" if has_mag else "Missing Magnetometer")
+                code, out = run_adb_cmd("dumpsys sensorservice")
+                has_drv = any(k.lower() in out.lower() for k in keywords)
+                
+                if has_drv:
+                    reporter.add_result("Sensors", f"{ui_name} (Presence)", True, 
+                                        "Driver registered (Sleep State). No live numeric events detected because no app is currently polling it.",
+                                        procedure="Check dumpsys representation", pass_criteria="Found in driver list")
+                else:
+                    reporter.add_result("Sensors", f"{ui_name} (Presence)", False, 
+                                        f"Missing {ui_name} driver completely from service.",
+                                        status_override="FAIL")
     except Exception as e:
-        reporter.add_result("Sensors", "e-Compass Check", False, str(e))
+        reporter.add_result("Sensors", "e-Compass Check", False, str(e), status_override="ERROR")

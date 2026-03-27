@@ -83,12 +83,30 @@ def toggle_screen(turn_on: bool):
         run_adb_cmd("input keyevent 26") # KEYCODE_POWER
         time.sleep(1)
 
+def unlock_device():
+    """Unlocks the device by waking it up, dismissing keyguard, and swiping."""
+    # 1. Wake up
+    run_adb_cmd("input keyevent 224") # KEYCODE_WAKEUP
+    time.sleep(1)
+    # 2. Dismiss keyguard (Software level)
+    run_adb_cmd("wm dismiss-keyguard")
+    time.sleep(1)
+    # 3. Swipe up (in case of Swipe-to-Unlock)
+    _, size_out = run_adb_cmd("wm size")
+    try:
+        if "Physical size" in size_out:
+            dims = [int(s) for s in size_out.split(":")[-1].strip().split("x")]
+            w, h = dims[0], dims[1]
+            # Swipe from center-bottom to center-top
+            run_adb_cmd(f"input swipe {w//2} {h-200} {w//2} 200")
+            time.sleep(1)
+    except Exception:
+        pass
+
 def keep_screen_on(enable: bool = True):
     """Prevents the screen from sleeping while USB is connected."""
     val = "true" if enable else "false"
     run_adb_cmd(f"svc power stayon {val}")
     if enable:
-        # Wake up the device if it's sleeping
-        run_adb_cmd("input keyevent 224") # KEYCODE_WAKEUP
-        run_adb_cmd("wm dismiss-keyguard") # Dismiss simple lockscreens
+        unlock_device()
     logging.info(f"Screen 'Stay Awake' set to: {enable}")

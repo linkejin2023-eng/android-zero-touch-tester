@@ -29,8 +29,8 @@ def run_tests(ui, reporter):
         logging.info("--- NFC Tag Read Test (Automatic Re-poll) ---")
         logging.info("Scanning logs for tag detection after power cycle...")
         
-        # Searching last 1000 lines to ensure we don't miss the event
-        code, out = run_adb_cmd("logcat -d -t 1000 | grep -iE 'tag|nfc' | grep -iE 'dispatch|detected|found'")
+        # Searching last 1000 lines for definitive Android tag discovery intents
+        code, out = run_adb_cmd("logcat -d -t 1000 | grep -iE 'ACTION_NDEF_DISCOVERED|ACTION_TECH_DISCOVERED|ACTION_TAG_DISCOVERED|NativeNfcTag: Connect|Tag discovered'")
         
         if out.strip():
             reporter.add_result("NFC", "Tag Read Verification", True, f"Verified: NFC Tag detected in logs. Sample: {out.splitlines()[-1]}")

@@ -15,6 +15,11 @@ def run_tests(ui: UIHelper, reporter: HTMLReportGenerator, ssid=None, password=N
     
     # WiFi Tests
     try:
+        # Enforce mutual exclusivity
+        logging.info("Enforcing Mutual Exclusivity: Disabling Mobile Data...")
+        run_adb_cmd("svc data disable")
+        time.sleep(2)
+        
         # Enable WiFi via cmd wifi
         run_adb_cmd("svc wifi enable")
         time.sleep(3)
@@ -26,70 +31,62 @@ def run_tests(ui: UIHelper, reporter: HTMLReportGenerator, ssid=None, password=N
             reporter.add_result("Connectivity", "WiFi Enable", False, "WiFi failed to enable (settings check)")
             
         # --- 1. WiFi Scanning (Visibility Check) ---
-        logging.info("Scanning for WiFi Access Points...")
+        logging.info("Scanning for WiFi Access Points (Up to 15s)...")
         run_adb_cmd("cmd wifi start-scan")
-        time.sleep(5)
-        _, scan_out = run_adb_cmd("cmd wifi list-scan-results")
         
         found_aps = []
-        for line in scan_out.strip().split('\n'):
-            parts = line.split()
-            if len(parts) >= 5 and ":" in parts[0]: 
-                ssid = " ".join(parts[4:])
-                if ssid and ssid not in found_aps:
-                    found_aps.append(ssid)
-        
+        for _ in range(3):
+            time.sleep(5)
+            _, scan_out = run_adb_cmd("cmd wifi list-scan-results")
+            
+            found_aps = []
+            for line in scan_out.strip().split('\n'):
+                parts = line.split()
+                if len(parts) >= 5 and ":" in parts[0]: 
+                    ssid = " ".join(parts[4:]).strip()
+                    # Clean up common flags if trailing
+                    if "[ESS]" in ssid: ssid = ssid.split("[ESS]")[0].strip()
+                    if ssid and ssid not in found_aps:
+                        found_aps.append(ssid)
+            
+            if target_ssid and target_ssid in found_aps:
+                logging.info(f"Target SSID {target_ssid} found early in scan!")
+                break
+                
         if found_aps:
             reporter.add_result("Connectivity", "WiFi Scanning", True, f"Found {len(found_aps)} nearby Access Points: {', '.join(found_aps[:3])}")
         else:
             reporter.add_result("Connectivity", "WiFi Scanning", False, "No nearby WiFi Access Points detected")
 
         # --- 2. WiFi Association (Connection Check) ---
-        if target_ssid and target_ssid != "YOUR_WIFI_SSID":
-            # Pre-check if target SSID is in the scan list
-            if target_ssid not in found_aps:
-                logging.warning(f"Target SSID '{target_ssid}' NOT FOUND in scan results. Skipping connection test.")
-                reporter.add_result("Connectivity", "WiFi Association", True, f"SKIPPED: Target SSID '{target_ssid}' not visible in air. (Environment issue, not device failure)", status_override="SKIP")
-            else:
-                logging.info(f"Connecting to AP: {target_ssid} (Max 30s)...")
-                run_adb_cmd(f'cmd wifi connect-network "{target_ssid}" wpa2 "{target_pass}"')
+        if target_ssid and target_pass:
+            logging.info(f"Attempting unconditional connection to AP: {target_ssid} (Max 30s)...")
+            run_adb_cmd(f'cmd wifi connect-network "{target_ssid}" wpa2 "{target_pass}"')
+            
+            ip = None
+            last_status = "Unknown"
+            for i in range(30):
+                time.sleep(1)
+                # Use cmd wifi status for modern state reporting
+                _, status_out = run_adb_cmd("cmd wifi status")
+                last_status = status_out.strip()
                 
-                ip = None
-                last_status = "Unknown"
-                for i in range(30):
-                    time.sleep(1)
-                    # Use cmd wifi status for modern state reporting
-                    _, status_out = run_adb_cmd("cmd wifi status")
-                    last_status = status_out.strip()
-                    
-                    # Check IP address
-                    _, out_ip = run_adb_cmd("ifconfig wlan0")
-                    if "inet addr:" in out_ip:
-                        ip = out_ip.split("inet addr:")[1].split()[0]
-                        break
-                    
-                    if i % 5 == 0:
-                        logging.info(f"Waiting for IP ({i}/30s)... Status: {last_status}")
+                # Check IP address
+                _, out_ip = run_adb_cmd("ifconfig wlan0")
+                if "inet addr:" in out_ip:
+                    ip = out_ip.split("inet addr:")[1].split()[0]
+                    break
+                
+                if i % 5 == 0:
+                    logging.info(f"Waiting for IP ({i}/30s)... Status: {last_status}")
 
-                if ip:
-                    reporter.add_result("Connectivity", "WiFi Association", True, f"Connected to {target_ssid} (IP: {ip})")
-                else:
-                    reporter.add_result("Connectivity", "WiFi Association", False, f"Failed to get IP address for {target_ssid}. Last status: {last_status}")
-            
-            # --- WiFi Scanning Test ---
-            logging.info("Starting WiFi Scanning test...")
-            run_adb_cmd("cmd wifi start-scan")
-            time.sleep(5)
-            _, scan_out = run_adb_cmd("cmd wifi list-scan-results")
-            
-            # Parsing logic: Skip header, extract SSIDs
-            found_aps = []
-            for line in scan_out.strip().split('\n'):
-                parts = line.split()
-                if len(parts) >= 5 and ":" in parts[0]: # Basic BSSID check
-                    ssid = " ".join(parts[4:]) # SSID can contain spaces
-                    if ssid and ssid not in found_aps:
-                        found_aps.append(ssid)
+            if ip:
+                reporter.add_result("Connectivity", "WiFi Association", True, f"Connected to {target_ssid} (IP: {ip})")
+            else:
+                reporter.add_result("Connectivity", "WiFi Association", False, f"Failed to get IP address for {target_ssid}. Last status: {last_status}")
+        else:
+            reporter.add_result("Connectivity", "WiFi Association", False, "No target SSID/PWD provided in config", status_override="SKIP")
+        
         # --- Robust WiFi Toggle Verification ---
         logging.info("Verifying WiFi 'Disable' functionality...")
         run_adb_cmd("svc wifi disable")

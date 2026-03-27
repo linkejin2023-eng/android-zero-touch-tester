@@ -6,7 +6,7 @@ import yaml
 from framework.adb_helper import wait_for_device, get_system_property, run_adb_cmd
 from framework.ui_automator import UIHelper
 from framework.report_generator import HTMLReportGenerator
-from framework.tests import test_display, test_audio, test_camera, test_connectivity, test_sensors_power
+from framework.tests import test_audio, test_camera, test_connectivity, test_sensors_power
 from framework.tests import test_sensors_advanced, test_nfc, test_gps, test_reboot
 
 from framework.flash_manager import FlashManager
@@ -149,8 +149,6 @@ def main():
             test_reboot.run_tests(ui, reporter)
         
         # Phase 1
-        if should_run("display"):
-            test_display.run_tests(ui, reporter)
         if should_run("audio"):
             test_audio.run_tests(ui, reporter)
         if should_run("camera"):

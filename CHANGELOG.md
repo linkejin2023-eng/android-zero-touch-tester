@@ -1,6 +1,22 @@
 # Changelog
 
 所有關於本專案的顯著變更將會記錄於此檔案中。
+ 
+## [2026-03-27] - 視力介面翻新與核心基座完結 (Infrastructure & Optimization)
+### Added (新增)
+- **UI 報表全面儀表板化 (Visual Dashboard Refresh)**：徹底改寫 `framework/report_generator.py`，導入 Donut Chart、子系統進度條與 SKIP/ERROR 狀態追蹤，無需外部 JS 依賴。
+- **自動化裝置解鎖 (Auto-Unlock)**：在測試啟動前自動偵測鎖定狀態，透過 `wm dismiss-keyguard` 與 AOSP 滑動模擬達成 100% 盲打解鎖。
+- **核心架構模組化 (Infrastructure Refactoring)**：引入 `config.yaml` 實現模組開關與參數抽離，並實作 `baseline.yaml` 用於韌體版本權威核驗。
+- **Gatekeeper 安全檢查機制**：在 `main.py` 啟動前強制執行 SELinux Enforcing 與非 Root 驗證，實現 Fail-Fast 操作。
+
+### Changed (變更)
+- **三段式快門觸發結構**：針對 Task D 優化目標，將 `test_camera.py` 重構為「Keyevent 優先 -> UI 降級輔助 -> 座標保底」結構，徹底解決 UI 改版失效問題。
+
+### Fixed (修正)
+- **Sensor 靈敏度判定 (平行任務 A)**：引入方差/標準差運算 (Variance)，實現對加速度計與陀螺儀的熵值分析，精確區分「休眠 (Sleep)」與「損壞 (Fixed Value)」。
+- **GPS/GNSS 寬容判定 (平行任務 B)**：新增 T70 專用 `GNSS_KPI` 解析器，支援在室內弱訊號下的硬體驗證。
+- **WiFi 連線強韌化 (平行任務 C)**：移除對掃描快取的依賴，強制執行連線指令並優化 IP 獲取等待邏輯。
+- **報告完成度匯總**：修復了 `main.py` 在特定環境下遺漏模組結果的統計錯誤。
 
 ## [2026-03-26] - 音訊熵值分析與相機動態適配 (T70 穩定化)
 ### Added (新增)

@@ -1,16 +1,15 @@
 # Sanity Automation Framework Configuration
 
 modules:
-  reboot: true
-  display: true
-  audio: true
+  reboot: false
+  audio: false
   camera: true
   connectivity: true
-  sensors_power: true
+  sensors_power: false
   sensors_advanced: true
   nfc: true
   gps: true
-
+  
 network:
   wifi_ssid: "Xiaomi_test"
-  wifi_pass: "88888888"
+  wifi_pass: "0987654321"

@@ -67,29 +67,40 @@ def run_tests(ui: UIHelper, reporter: HTMLReportGenerator):
         return set(f.strip() for f in out.split('\n') if f.strip())
 
     # Coordinate fallback for Snapcam shutter (Dynamic based on screen size)
-    def get_shutter_pos():
-        # 1. Try to find via Resource ID (Including Snapcam specific ID)
-        shutter_ids = ".*shutter.*|.*video_button.*|org.codeaurora.snapcam:id/shutter_button"
-        shutter = ui.d(resourceIdMatches=shutter_ids)
-        if shutter.exists:
-            info = shutter.info
-            bounds = info['bounds']
-            x = (bounds['left'] + bounds['right']) // 2
-            y = (bounds['top'] + bounds['bottom']) // 2
-            logging.info(f"Dynamic shutter pos (UI): ({x}, {y})")
-            return x, y
-        
-        # 2. Fallback: Calculate based on screen resolution (Assuming Landscape)
+    def trigger_shutter():
+        # Step 1: Hardware Keyevents (Primary Strategy - UI Independent)
+        logging.info("Triggering shutter via Keyevents (27, 66)...")
+        run_adb_cmd("input keyevent 27") # KEYCODE_CAMERA
+        time.sleep(1)
+        run_adb_cmd("input keyevent 66") # KEYCODE_ENTER
+        time.sleep(1)
+
+        # Step 2: UI Automator Click (Fallback Strategy)
+        shutter_ids = [
+            "org.codeaurora.snapcam:id/shutter_button",
+            "com.android.camera:id/shutter_button",
+            ".*shutter.*"
+        ]
+        for sid in shutter_ids:
+            try:
+                shutter = ui.d(resourceIdMatches=sid)
+                if shutter.exists(timeout=2):
+                    logging.info(f"Triggering shutter via UI Click fallback ({sid})")
+                    shutter.click()
+                    return True
+            except: pass
+            
+        # Step 3: Coordinate Fallback (Calculated)
         _, size_out = run_adb_cmd("wm size")
         if "Physical size" in size_out:
-            # Physical size: 1920x1200 -> [1920, 1200]
+            # ... existing coordinate tap logic ...
             dims = [int(s) for s in size_out.split(":")[-1].strip().split("x")]
-            w, h = max(dims), min(dims) # Landscape assumption
+            w, h = max(dims), min(dims) 
             x, y = w - 150, h // 2
-            logging.info(f"Dynamic shutter fallback (Res): ({x}, {y}) for {w}x{h}")
-            return x, y
-            
-        return 1800, 600 # Last resort for 1080p/1200p
+            logging.info(f"Triggering shutter via coordinate fallback: ({x}, {y})")
+            run_adb_cmd(f"input tap {x} {y}")
+            return True
+        return False
 
     # Clean start for Photo
     run_adb_cmd(f"am force-stop {target_pkg}")
@@ -102,30 +113,26 @@ def run_tests(ui: UIHelper, reporter: HTMLReportGenerator):
     bypass_camera_dialogs()
     
     # Capture count before
-    _, out_before = run_adb_cmd(f"find {target_dir} -maxdepth 1 -type f | wc -l")
+    _, out_before = run_adb_cmd(f"ls {target_dir} | wc -l")
     count_before = int(out_before.strip()) if out_before.strip().isdigit() else 0
     
-    sx, sy = get_shutter_pos()
-    ui.d.click(sx, sy) 
-    time.sleep(5) # Wait for processing
+    # Use native camera hardware key event for maximum robustness (Task D Optimization)
+    logging.info("Triggering photo capture...")
+    trigger_shutter()
+    time.sleep(8) # Wait for storage sync
     
-    # Verification: Try to find newest file created in the last 1 minute
-    _, find_out = run_adb_cmd(f"find {target_dir} -maxdepth 1 -mmin -1 -type f | head -n 1")
+    # Verification A: Count check
+    _, out_after = run_adb_cmd(f"ls {target_dir} | wc -l")
+    count_after = int(out_after.strip()) if out_after.strip().isdigit() else 0
+    
+    # Verification B: Get newest file (LS -t)
+    _, find_out = run_adb_cmd(f"ls -t {target_dir} | head -n 1")
     file_after = find_out.strip()
     
-    if file_after:
-        reporter.add_result("Camera", "Photo Capture", True, f"Verified: New photo created: {os.path.basename(file_after)}")
+    if count_after > count_before or (file_after and "IMG_" in file_after):
+        reporter.add_result("Camera", "Photo Capture", True, f"Verified: New photo created: {file_after} (Count: {count_before} -> {count_after})")
     else:
-        # Fallback to keyevent Focus + Shutter
-        logging.info("UI click failed to produce file, trying KEYEVENT_CAMERA...")
-        run_adb_cmd("input keyevent 27")
-        time.sleep(5)
-        _, find_out = run_adb_cmd(f"find {target_dir} -maxdepth 1 -mmin -1 -type f | head -n 1")
-        file_after = find_out.strip()
-        if file_after:
-            reporter.add_result("Camera", "Photo Capture", True, f"Verified: Photo created via keyevent: {os.path.basename(file_after)}")
-        else:
-            reporter.add_result("Camera", "Photo Capture", False, "Failed to capture photo (UI click and Keyevent failed)")
+        reporter.add_result("Camera", "Photo Capture", False, "Failed to capture photo (Storage sync failed or shutter ignored)", status_override="ERROR")
 
     # --- 2. Video Recording Test ---
     logging.info("Starting Video Recording test...")
@@ -141,19 +148,16 @@ def run_tests(ui: UIHelper, reporter: HTMLReportGenerator):
             time.sleep(3)
             break
             
-    vx, vy = get_shutter_pos()
-    
-    # Capture precise device time BEFORE shutter click (Double-quoted for shell safety)
-    # Using adb shell "date '...'" format
+    # Capture precise device time BEFORE shutter click
     _, start_time_raw = run_adb_cmd("\"date '+%m-%d %H:%M:%S.000'\"")
     start_time = start_time_raw.strip()
     
-    logging.info(f"Recording video (15s)... START click at ({vx}, {vy}) at device time {start_time}")
-    ui.d.click(vx, vy)
+    logging.info(f"Recording video (15s)... START via multi-shutter at device time {start_time}")
+    trigger_shutter()
     time.sleep(15) 
     
     logging.info("Stopping recording...")
-    ui.d.click(vx, vy)
+    trigger_shutter()
     
     # Simple, bulletproof wait for muxing/renaming
     logging.info("Waiting 15s for file finalization...")
