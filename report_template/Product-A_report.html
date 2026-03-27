@@ -1,0 +1,3046 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smoke Test — Product-A</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,500;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface-2: #232733;
+    --surface-3: #2c3040;
+    --border: #333848;
+    --text: #e4e7ef;
+    --text-dim: #8891a5;
+    --text-muted: #5a6478;
+    --accent: #6c8cff;
+    --accent-dim: rgba(108,140,255,.12);
+    --green: #34d399;
+    --green-bg: rgba(52,211,153,.08);
+    --green-border: rgba(52,211,153,.25);
+    --red: #f87171;
+    --red-bg: rgba(248,113,113,.08);
+    --red-border: rgba(248,113,113,.25);
+    --amber: #fbbf24;
+    --amber-bg: rgba(251,191,36,.08);
+    --amber-border: rgba(251,191,36,.25);
+    --pink: #f472b6;
+    --radius: 10px;
+    --mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+    --sans: 'DM Sans', -apple-system, 'Segoe UI', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  .container { max-width: 1280px; margin: 0 auto; padding: 32px 40px 60px; }
+
+  /* ─── Header ─── */
+  header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 36px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+  }
+  .header-icon {
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    background: var(--accent-dim);
+    border: 1px solid rgba(108,140,255,.2);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    margin-right: 14px;
+    flex-shrink: 0;
+  }
+  .header-left { display: flex; align-items: flex-start; }
+  header h1 {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+    color: var(--text);
+  }
+  .header-meta {
+    display: flex;
+    gap: 20px;
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-top: 6px;
+    font-family: var(--mono);
+  }
+  .header-meta .sep { color: var(--text-muted); }
+  .header-right { text-align: right; font-size: 13px; color: var(--text-dim); }
+  .overall-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 16px; border-radius: 20px;
+    font-weight: 700; font-size: 14px; margin-bottom: 6px;
+  }
+  .overall-badge.pass { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }
+  .overall-badge.fail { background: var(--red-bg); color: var(--red); border: 1px solid var(--red-border); }
+
+  /* ─── Stats Row ─── */
+  .stats-row { display: grid; grid-template-columns: 200px 1fr; gap: 24px; margin-bottom: 36px; }
+
+  /* Donut Chart */
+  .donut-wrap {
+    background: var(--surface); border-radius: var(--radius);
+    border: 1px solid var(--border); padding: 24px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .donut { position: relative; width: 140px; height: 140px; }
+  .donut svg { transform: rotate(-90deg); }
+  .donut-center {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+  }
+  .donut-pct { font-size: 32px; font-weight: 700; font-family: var(--mono); line-height: 1; }
+  .donut-label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; margin-top: 2px; }
+
+  /* Stat Cards */
+  .stat-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+  .stat-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 18px 20px;
+    position: relative; overflow: hidden;
+  }
+  .stat-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+  .stat-card.total::before { background: var(--accent); }
+  .stat-card.pass::before { background: var(--green); }
+  .stat-card.fail::before { background: var(--red); }
+  .stat-card.error::before { background: var(--pink); }
+  .stat-card.skip::before { background: var(--amber); }
+  .stat-card .stat-label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 6px; }
+  .stat-card .stat-value { font-size: 28px; font-weight: 700; font-family: var(--mono); line-height: 1; }
+  .stat-card.total .stat-value { color: var(--accent); }
+  .stat-card.pass .stat-value { color: var(--green); }
+  .stat-card.fail .stat-value { color: var(--red); }
+  .stat-card.error .stat-value { color: var(--pink); }
+  .stat-card.skip .stat-value { color: var(--amber); }
+
+  /* ─── Device Info ─── */
+  .device-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 36px; }
+  .device-panel {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 20px 24px;
+  }
+  .device-panel h3 {
+    font-size: 12px; text-transform: uppercase; letter-spacing: 1.5px;
+    color: var(--accent); margin-bottom: 14px; padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .info-row { display: flex; padding: 5px 0; font-size: 13px; gap: 8px; }
+  .info-label { color: var(--text-dim); min-width: 110px; flex-shrink: 0; }
+  .info-value { color: var(--text); font-family: var(--mono); font-size: 12px; word-break: break-all; }
+
+  /* ─── Section Header ─── */
+  .section-title {
+    font-size: 14px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 1.5px; color: var(--text-dim);
+    margin-bottom: 16px; padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* ─── Preflight ─── */
+  .preflight { margin-bottom: 36px; }
+  .preflight-grid { display: flex; flex-direction: column; gap: 6px; }
+  .pf-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 16px; border-radius: 8px;
+    background: var(--surface); border: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .pf-icon { font-size: 16px; width: 20px; text-align: center; flex-shrink: 0; }
+  .pf-name { font-weight: 600; min-width: 160px; flex-shrink: 0; }
+  .pf-msg { color: var(--text-dim); font-family: var(--mono); font-size: 12px; }
+  .pf-item.pf-ok .pf-icon { color: var(--green); }
+  .pf-item.pf-ok { border-color: rgba(52,211,153,.15); }
+  .pf-item.pf-warning .pf-icon { color: var(--amber); }
+  .pf-item.pf-warning { border-color: rgba(251,191,36,.2); background: rgba(251,191,36,.03); }
+  .pf-item.pf-critical .pf-icon { color: var(--red); }
+  .pf-item.pf-critical { border-color: rgba(248,113,113,.3); background: rgba(248,113,113,.05); }
+  .pf-item.pf-info .pf-icon { color: var(--accent); }
+
+  /* ─── Filter Bar ─── */
+  .filter-bar {
+    display: flex; gap: 8px; margin-bottom: 20px; align-items: center; flex-wrap: wrap;
+  }
+  .filter-btn {
+    font-family: var(--mono); font-size: 12px; font-weight: 600;
+    padding: 5px 14px; border-radius: 6px;
+    border: 1px solid var(--border); background: var(--surface);
+    color: var(--text-dim); cursor: pointer;
+    transition: all .15s;
+  }
+  .filter-btn:hover { border-color: var(--accent); color: var(--text); }
+  .filter-btn.active { border-color: var(--accent); background: var(--accent-dim); color: var(--accent); }
+  .filter-btn.f-fail.active { border-color: var(--red); background: var(--red-bg); color: var(--red); }
+  .filter-btn.f-skip.active { border-color: var(--amber); background: var(--amber-bg); color: var(--amber); }
+  .filter-btn.f-pass.active { border-color: var(--green); background: var(--green-bg); color: var(--green); }
+  .filter-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-right: 4px; }
+
+  /* ─── Subsystem Summary Grid ─── */
+  .subsystem-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px; margin-bottom: 40px;
+  }
+  .sub-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 16px 20px;
+    cursor: pointer; transition: border-color .2s, transform .15s, box-shadow .2s;
+    position: relative;
+  }
+  .sub-card:hover { border-color: var(--accent); transform: translateY(-1px); }
+  .sub-card.s-pass { border-left: 3px solid var(--green); }
+  .sub-card.s-fail {
+    border-left: 3px solid var(--red);
+    box-shadow: 0 0 20px rgba(248,113,113,.08), inset 0 0 30px rgba(248,113,113,.03);
+  }
+  .sub-card .sub-name { font-size: 14px; font-weight: 600; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+  .sub-card .sub-badge {
+    font-size: 11px; font-family: var(--mono);
+    padding: 2px 8px; border-radius: 10px; font-weight: 600;
+  }
+  .sub-card.s-pass .sub-badge { background: var(--green-bg); color: var(--green); }
+  .sub-card.s-fail .sub-badge { background: var(--red-bg); color: var(--red); }
+  .sub-bar { height: 6px; border-radius: 3px; background: var(--surface-3); overflow: hidden; display: flex; }
+  .sub-bar-pass { background: var(--green); }
+  .sub-bar-fail { background: var(--red); }
+  .sub-bar-skip { background: var(--amber); opacity: .6; }
+  .sub-bar-error { background: var(--pink); }
+  .sub-stats {
+    display: flex; gap: 12px; margin-top: 10px;
+    font-size: 12px; font-family: var(--mono); color: var(--text-dim);
+  }
+  .sub-stats span { display: flex; align-items: center; gap: 4px; }
+  .sub-stats .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+  .sub-stats .dot.g { background: var(--green); }
+  .sub-stats .dot.r { background: var(--red); }
+  .sub-stats .dot.a { background: var(--amber); }
+
+  /* ─── Detail Tables ─── */
+  .cat-section { margin-bottom: 16px; }
+  .cat-section-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 20px;
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: var(--radius) var(--radius) 0 0;
+    cursor: pointer; user-select: none; transition: background .15s;
+  }
+  .cat-section-header:hover { background: var(--surface-3); }
+  .cat-section-header h3 { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+  .cat-section-header .cat-count { font-family: var(--mono); font-size: 12px; color: var(--text-dim); margin-left: 4px; }
+  .cat-section-header .chevron {
+    color: var(--text-muted); transition: transform .2s; font-size: 12px;
+  }
+  .cat-section.collapsed .chevron { transform: rotate(-90deg); }
+  .cat-section.collapsed .cat-table-wrap { display: none; }
+
+  .cat-table-wrap {
+    border: 1px solid var(--border); border-top: none;
+    border-radius: 0 0 var(--radius) var(--radius); overflow: hidden;
+  }
+
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    background: var(--surface-3); color: var(--text-dim);
+    padding: 10px 16px; text-align: left;
+    font-size: 11px; text-transform: uppercase;
+    letter-spacing: 1px; font-weight: 600;
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: 10px 16px; border-bottom: 1px solid rgba(51,56,72,.5);
+    font-size: 13px; vertical-align: top;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(108,140,255,.03); }
+  tr.hidden-by-filter { display: none; }
+  td.id-col { font-family: var(--mono); font-size: 12px; color: var(--text-dim); white-space: nowrap; }
+  td.dur-col { font-family: var(--mono); font-size: 12px; color: var(--text-dim); white-space: nowrap; }
+  td.msg-col { font-size: 12px; color: var(--text-dim); max-width: 400px; word-break: break-word; }
+
+  /* Detail expand */
+  tr.has-detail { cursor: pointer; }
+  tr.has-detail td:first-child { position: relative; }
+  tr.has-detail td:first-child::before {
+    content: '▸';
+    position: absolute;
+    left: 5px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    font-size: 10px;
+    transition: transform .2s, color .2s;
+  }
+  tr.has-detail.expanded td:first-child::before {
+    transform: translateY(-50%) rotate(90deg);
+    color: var(--accent);
+  }
+  tr.has-detail:hover td { background: rgba(108,140,255,.04); }
+
+  tr.detail-row { display: none; }
+  tr.detail-row.show { display: table-row; }
+  tr.detail-row td {
+    padding: 0 16px 14px 40px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    border-left: 2px solid var(--accent);
+  }
+  .detail-content {
+    display: flex;
+    gap: 32px;
+    padding: 10px 16px;
+    background: rgba(108,140,255,.03);
+    border-radius: 6px;
+    font-size: 12px;
+  }
+  .detail-item { display: flex; flex-direction: column; gap: 3px; }
+  .detail-label {
+    color: var(--text-muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 9px;
+    letter-spacing: 1px;
+  }
+  .detail-value {
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 11px;
+    word-break: break-all;
+    line-height: 1.5;
+  }
+
+  .status {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-family: var(--mono); font-size: 12px; font-weight: 600;
+    padding: 3px 10px; border-radius: 6px;
+  }
+  .status.s-PASS { color: var(--green); background: var(--green-bg); }
+  .status.s-FAIL { color: var(--red); background: var(--red-bg); }
+  .status.s-SKIP { color: var(--amber); background: var(--amber-bg); }
+  .status.s-ERROR { color: var(--pink); background: rgba(244,114,182,.1); }
+
+  /* ─── Flat table fallback ─── */
+  .flat-table { background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); overflow: hidden; }
+
+  /* ─── Footer ─── */
+  footer {
+    margin-top: 48px; padding-top: 20px;
+    border-top: 1px solid var(--border);
+    font-size: 12px; color: var(--text-muted);
+    display: flex; justify-content: space-between;
+  }
+
+  /* ─── Animations ─── */
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .animate-in { animation: fadeUp .35s ease-out both; }
+  .d1 { animation-delay: .05s } .d2 { animation-delay: .1s } .d3 { animation-delay: .15s }
+  .d4 { animation-delay: .2s } .d5 { animation-delay: .25s } .d6 { animation-delay: .3s }
+
+  /* ─── Back to top ─── */
+  .back-to-top {
+    position: fixed; bottom: 32px; right: 32px;
+    width: 40px; height: 40px; border-radius: 50%;
+    background: var(--surface-2); border: 1px solid var(--border);
+    color: var(--text-dim); font-size: 18px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none;
+    transition: opacity .25s, background .15s, transform .15s;
+    z-index: 100;
+  }
+  .back-to-top.visible { opacity: 1; pointer-events: auto; }
+  .back-to-top:hover { background: var(--accent); color: #fff; transform: translateY(-2px); }
+
+  @media (max-width: 900px) {
+    .container { padding: 20px; }
+    .stats-row { grid-template-columns: 1fr; }
+    .device-grid { grid-template-columns: 1fr; }
+    .subsystem-grid { grid-template-columns: 1fr 1fr; }
+    header { flex-direction: column; gap: 12px; }
+  }
+  @media (max-width: 500px) {
+    .subsystem-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <!-- Header -->
+  <header class="animate-in">
+    <div class="header-left">
+      <div class="header-icon">&#x2691;</div>
+      <div>
+        <h1>Smoke Test</h1>
+        <div class="header-meta">
+          <span>Product-A</span>
+          <span class="sep">/</span>
+          <span>2026-03-25 12:47:41</span>
+        </div>
+      </div>
+    </div>
+    <div class="header-right">
+      
+      <div class="overall-badge fail">&#x2716; 3 FAILED</div>
+      
+      <div>68 tests</div>
+    </div>
+  </header>
+
+  <!-- Stats Row -->
+  <div class="stats-row animate-in d1">
+    <div class="donut-wrap">
+      <div class="donut">
+        
+        
+        
+        
+        <svg width="140" height="140" viewBox="0 0 140 140">
+          <circle cx="70" cy="70" r="65" fill="none" stroke="var(--surface-3)" stroke-width="10"/>
+          
+          <circle cx="70" cy="70" r="65" fill="none" stroke="var(--green)" stroke-width="10"
+            stroke-dasharray="318.0 408"
+            stroke-linecap="round"/>
+          
+          
+          <circle cx="70" cy="70" r="65" fill="none" stroke="var(--red)" stroke-width="10"
+            stroke-dasharray="16.0 408"
+            stroke-dashoffset="-318.0"
+            stroke-linecap="round"/>
+          
+          
+          <circle cx="70" cy="70" r="65" fill="none" stroke="var(--amber)" stroke-width="10" opacity="0.6"
+            stroke-dasharray="73.0 408"
+            stroke-dashoffset="-335.0"
+            stroke-linecap="round"/>
+          
+        </svg>
+        <div class="donut-center">
+          <div class="donut-pct" style="color: var(--text)">78.0%</div>
+          <div class="donut-label">pass rate</div>
+        </div>
+      </div>
+    </div>
+    <div class="stat-cards">
+      <div class="stat-card total"><div class="stat-label">Total</div><div class="stat-value">68</div></div>
+      <div class="stat-card pass"><div class="stat-label">Passed</div><div class="stat-value">53</div></div>
+      <div class="stat-card fail"><div class="stat-label">Failed</div><div class="stat-value">1</div></div>
+      <div class="stat-card error"><div class="stat-label">Error</div><div class="stat-value">2</div></div>
+      <div class="stat-card skip"><div class="stat-label">Skipped</div><div class="stat-value">12</div></div>
+    </div>
+  </div>
+
+  <!-- Device Info -->
+  
+  <div class="device-grid animate-in d2">
+    <div class="device-panel">
+      <h3>Hardware</h3>
+      
+      
+      <div class="info-row"><span class="info-label">Model</span><span class="info-value">T70</span></div>
+      
+      
+      <div class="info-row"><span class="info-label">Brand</span><span class="info-value">Trimble</span></div>
+      
+      
+      <div class="info-row"><span class="info-label">Manufacturer</span><span class="info-value">Trimble Inc</span></div>
+      
+      
+      <div class="info-row"><span class="info-label">Device</span><span class="info-value">thorpe</span></div>
+      
+      
+      <div class="info-row"><span class="info-label">Hardware</span><span class="info-value">qcom</span></div>
+      
+      
+      <div class="info-row"><span class="info-label">Board</span><span class="info-value">lahaina</span></div>
+      
+      
+      <div class="info-row"><span class="info-label">Platform</span><span class="info-value">lahaina</span></div>
+      
+      
+      <div class="info-row"><span class="info-label">CPU ABI</span><span class="info-value">arm64-v8a</span></div>
+      
+      
+      <div class="info-row"><span class="info-label">Serial</span><span class="info-value">DBB260100011</span></div>
+      
+    </div>
+    <div class="device-panel">
+      <h3>Software</h3>
+      
+      
+      <div class="info-row"><span class="info-label">Android</span><span class="info-value">15</span></div>
+      
+      
+      <div class="info-row"><span class="info-label">SDK Level</span><span class="info-value">35</span></div>
+      
+      
+      <div class="info-row"><span class="info-label">Security Patch</span><span class="info-value">2026-02-01</span></div>
+      
+      
+      <div class="info-row"><span class="info-label">Build ID</span><span class="info-value">02.01.05.260226 release-keys</span></div>
+      
+      
+      <div class="info-row"><span class="info-label">Build Type</span><span class="info-value">user</span></div>
+      
+      
+      <div class="info-row"><span class="info-label">GMS</span><span class="info-value">26.11.33 (260400-887465546)</span></div>
+      
+      
+      <div class="info-row"><span class="info-label">Kernel</span><span class="info-value">5.4.289-qgki-g34131bcfff0f</span></div>
+      
+    </div>
+    <div class="device-panel">
+      <h3>Component Firmware</h3>
+      
+      
+      <div class="info-row"><span class="info-label">WWAN Version</span><span class="info-value">SWIX12C_03.01.02.00</span></div>
+      
+      
+      <div class="info-row"><span class="info-label">WWAN Build Date</span><span class="info-value">2025/04/25 14:37:44</span></div>
+      
+      
+      <div class="info-row"><span class="info-label">Touch</span><span class="info-value">00_T7</span></div>
+      
+      
+      <div class="info-row"><span class="info-label">Keypad MCU</span><span class="info-value">0.17</span></div>
+      
+    </div>
+  </div>
+  
+
+  
+  <div class="preflight animate-in d3">
+    <div class="section-title">Preflight Check</div>
+    <div class="preflight-grid">
+      
+      <div class="pf-item pf-ok">
+        <span class="pf-icon">✓</span>
+        <span class="pf-name">ADB Connection</span>
+        <span class="pf-msg">Connected (DBB260100011)</span>
+      </div>
+      
+      <div class="pf-item pf-ok">
+        <span class="pf-icon">✓</span>
+        <span class="pf-name">Device Boot</span>
+        <span class="pf-msg">Boot completed</span>
+      </div>
+      
+      <div class="pf-item pf-ok">
+        <span class="pf-icon">✓</span>
+        <span class="pf-name">WiFi</span>
+        <span class="pf-msg">Connected</span>
+      </div>
+      
+      <div class="pf-item pf-ok">
+        <span class="pf-icon">✓</span>
+        <span class="pf-name">LLM API</span>
+        <span class="pf-msg">Available</span>
+      </div>
+      
+      <div class="pf-item pf-warning">
+        <span class="pf-icon">!</span>
+        <span class="pf-name">SIM Card</span>
+        <span class="pf-msg">Not detected — 8 test(s) will SKIP</span>
+      </div>
+      
+      <div class="pf-item pf-ok">
+        <span class="pf-icon">✓</span>
+        <span class="pf-name">USB Power Control</span>
+        <span class="pf-msg">Configured</span>
+      </div>
+      
+      <div class="pf-item pf-ok">
+        <span class="pf-icon">✓</span>
+        <span class="pf-name">Mobly Snippet APK</span>
+        <span class="pf-msg">Installed</span>
+      </div>
+      
+    </div>
+  </div>
+  
+
+  
+  <!-- Subsystem Summary (failed first) -->
+  <div class="section-title animate-in d3">Subsystem Overview</div>
+  <div class="subsystem-grid animate-in d3">
+    
+    <div class="sub-card s-pass" onclick="jumpToSection('sec-Boot')">
+      <div class="sub-name">
+        Boot
+        <span class="sub-badge">8/8</span>
+      </div>
+      <div class="sub-bar">
+        <div class="sub-bar-pass" style="width:100.0%"></div>
+        
+        
+        
+      </div>
+      <div class="sub-stats">
+        <span><span class="dot g"></span>8</span>
+        
+        
+      </div>
+    </div>
+    
+    <div class="sub-card s-pass" onclick="jumpToSection('sec-Firmware')">
+      <div class="sub-name">
+        Firmware
+        <span class="sub-badge">3/3</span>
+      </div>
+      <div class="sub-bar">
+        <div class="sub-bar-pass" style="width:100.0%"></div>
+        
+        
+        
+      </div>
+      <div class="sub-stats">
+        <span><span class="dot g"></span>3</span>
+        
+        
+      </div>
+    </div>
+    
+    <div class="sub-card s-pass" onclick="jumpToSection('sec-Touchscreen')">
+      <div class="sub-name">
+        Touchscreen
+        <span class="sub-badge">1/1</span>
+      </div>
+      <div class="sub-bar">
+        <div class="sub-bar-pass" style="width:100.0%"></div>
+        
+        
+        
+      </div>
+      <div class="sub-stats">
+        <span><span class="dot g"></span>1</span>
+        
+        
+      </div>
+    </div>
+    
+    <div class="sub-card s-pass" onclick="jumpToSection('sec-Sensor')">
+      <div class="sub-name">
+        Sensor
+        <span class="sub-badge">6/6</span>
+      </div>
+      <div class="sub-bar">
+        <div class="sub-bar-pass" style="width:100.0%"></div>
+        
+        
+        
+      </div>
+      <div class="sub-stats">
+        <span><span class="dot g"></span>6</span>
+        
+        
+      </div>
+    </div>
+    
+    <div class="sub-card s-pass" onclick="jumpToSection('sec-Audio')">
+      <div class="sub-name">
+        Audio
+        <span class="sub-badge">3/5</span>
+      </div>
+      <div class="sub-bar">
+        <div class="sub-bar-pass" style="width:60.0%"></div>
+        
+        
+        <div class="sub-bar-skip" style="width:40.0%"></div>
+      </div>
+      <div class="sub-stats">
+        <span><span class="dot g"></span>3</span>
+        
+        <span><span class="dot a"></span>2</span>
+      </div>
+    </div>
+    
+    <div class="sub-card s-pass" onclick="jumpToSection('sec-WiFi')">
+      <div class="sub-name">
+        WiFi
+        <span class="sub-badge">7/8</span>
+      </div>
+      <div class="sub-bar">
+        <div class="sub-bar-pass" style="width:88.0%"></div>
+        
+        
+        <div class="sub-bar-skip" style="width:12.0%"></div>
+      </div>
+      <div class="sub-stats">
+        <span><span class="dot g"></span>7</span>
+        
+        <span><span class="dot a"></span>1</span>
+      </div>
+    </div>
+    
+    <div class="sub-card s-pass" onclick="jumpToSection('sec-Bluetooth')">
+      <div class="sub-name">
+        Bluetooth
+        <span class="sub-badge">6/6</span>
+      </div>
+      <div class="sub-bar">
+        <div class="sub-bar-pass" style="width:100.0%"></div>
+        
+        
+        
+      </div>
+      <div class="sub-stats">
+        <span><span class="dot g"></span>6</span>
+        
+        
+      </div>
+    </div>
+    
+    <div class="sub-card s-pass" onclick="jumpToSection('sec-NFC')">
+      <div class="sub-name">
+        NFC
+        <span class="sub-badge">1/1</span>
+      </div>
+      <div class="sub-bar">
+        <div class="sub-bar-pass" style="width:100.0%"></div>
+        
+        
+        
+      </div>
+      <div class="sub-stats">
+        <span><span class="dot g"></span>1</span>
+        
+        
+      </div>
+    </div>
+    
+    <div class="sub-card s-pass" onclick="jumpToSection('sec-GPS')">
+      <div class="sub-name">
+        GPS
+        <span class="sub-badge">2/2</span>
+      </div>
+      <div class="sub-bar">
+        <div class="sub-bar-pass" style="width:100.0%"></div>
+        
+        
+        
+      </div>
+      <div class="sub-stats">
+        <span><span class="dot g"></span>2</span>
+        
+        
+      </div>
+    </div>
+    
+    <div class="sub-card s-pass" onclick="jumpToSection('sec-Telephony')">
+      <div class="sub-name">
+        Telephony
+        <span class="sub-badge">0/7</span>
+      </div>
+      <div class="sub-bar">
+        
+        
+        
+        <div class="sub-bar-skip" style="width:100.0%"></div>
+      </div>
+      <div class="sub-stats">
+        <span><span class="dot g"></span>0</span>
+        
+        <span><span class="dot a"></span>7</span>
+      </div>
+    </div>
+    
+    <div class="sub-card s-pass" onclick="jumpToSection('sec-Network')">
+      <div class="sub-name">
+        Network
+        <span class="sub-badge">3/4</span>
+      </div>
+      <div class="sub-bar">
+        <div class="sub-bar-pass" style="width:75.0%"></div>
+        
+        
+        <div class="sub-bar-skip" style="width:25.0%"></div>
+      </div>
+      <div class="sub-stats">
+        <span><span class="dot g"></span>3</span>
+        
+        <span><span class="dot a"></span>1</span>
+      </div>
+    </div>
+    
+    <div class="sub-card s-pass" onclick="jumpToSection('sec-Storage')">
+      <div class="sub-name">
+        Storage
+        <span class="sub-badge">2/2</span>
+      </div>
+      <div class="sub-bar">
+        <div class="sub-bar-pass" style="width:100.0%"></div>
+        
+        
+        
+      </div>
+      <div class="sub-stats">
+        <span><span class="dot g"></span>2</span>
+        
+        
+      </div>
+    </div>
+    
+    <div class="sub-card s-pass" onclick="jumpToSection('sec-USB')">
+      <div class="sub-name">
+        USB
+        <span class="sub-badge">1/1</span>
+      </div>
+      <div class="sub-bar">
+        <div class="sub-bar-pass" style="width:100.0%"></div>
+        
+        
+        
+      </div>
+      <div class="sub-stats">
+        <span><span class="dot g"></span>1</span>
+        
+        
+      </div>
+    </div>
+    
+    <div class="sub-card s-pass" onclick="jumpToSection('sec-System')">
+      <div class="sub-name">
+        System
+        <span class="sub-badge">1/1</span>
+      </div>
+      <div class="sub-bar">
+        <div class="sub-bar-pass" style="width:100.0%"></div>
+        
+        
+        
+      </div>
+      <div class="sub-stats">
+        <span><span class="dot g"></span>1</span>
+        
+        
+      </div>
+    </div>
+    
+    <div class="sub-card s-fail" onclick="jumpToSection('sec-Display')">
+      <div class="sub-name">
+        Display
+        <span class="sub-badge">2/3</span>
+      </div>
+      <div class="sub-bar">
+        <div class="sub-bar-pass" style="width:67.0%"></div>
+        
+        <div class="sub-bar-error" style="width:33.0%"></div>
+        
+      </div>
+      <div class="sub-stats">
+        <span><span class="dot g"></span>2</span>
+        
+        
+      </div>
+    </div>
+    
+    <div class="sub-card s-fail" onclick="jumpToSection('sec-Camera')">
+      <div class="sub-name">
+        Camera
+        <span class="sub-badge">3/5</span>
+      </div>
+      <div class="sub-bar">
+        <div class="sub-bar-pass" style="width:60.0%"></div>
+        
+        <div class="sub-bar-error" style="width:20.0%"></div>
+        <div class="sub-bar-skip" style="width:20.0%"></div>
+      </div>
+      <div class="sub-stats">
+        <span><span class="dot g"></span>3</span>
+        
+        <span><span class="dot a"></span>1</span>
+      </div>
+    </div>
+    
+    <div class="sub-card s-fail" onclick="jumpToSection('sec-Power')">
+      <div class="sub-name">
+        Power
+        <span class="sub-badge">4/5</span>
+      </div>
+      <div class="sub-bar">
+        <div class="sub-bar-pass" style="width:80.0%"></div>
+        <div class="sub-bar-fail" style="width:20.0%"></div>
+        
+        
+      </div>
+      <div class="sub-stats">
+        <span><span class="dot g"></span>4</span>
+        <span><span class="dot r"></span>1</span>
+        
+      </div>
+    </div>
+    
+  </div>
+
+  <!-- Filter Bar -->
+  <div class="section-title animate-in d4">Detailed Results</div>
+  <div class="filter-bar animate-in d4">
+    <span class="filter-label">Filter:</span>
+    <button class="filter-btn active" onclick="filterTests('all')">All</button>
+    <button class="filter-btn f-fail" onclick="filterTests('FAIL')">Failed</button>
+    <button class="filter-btn f-skip" onclick="filterTests('SKIP')">Skipped</button>
+    <button class="filter-btn f-pass" onclick="filterTests('PASS')">Passed</button>
+  </div>
+
+  <!-- Detailed Results (failed sections expanded, passed collapsed) -->
+  
+  <div class="cat-section collapsed" id="sec-Boot">
+    <div class="cat-section-header" onclick="toggleSection('sec-Boot')">
+      <h3>
+        <span class="status s-PASS">
+          ✓
+        </span>
+        Boot
+        <span class="cat-count">8/8</span>
+      </h3>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="cat-table-wrap">
+      <table>
+        <tr><th>ID</th><th>Test</th><th>Status</th><th>Duration</th><th>Message</th></tr>
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-boot_complete', this)">
+          <td class="id-col">boot_complete</td>
+          <td>開機完成驗證</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">0.05s</td>
+          <td class="msg-col"></td>
+        </tr>
+        
+        <tr class="detail-row" id="d-boot_complete">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">getprop sys.boot_completed</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">== "1"</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-sku_id', this)">
+          <td class="id-col">sku_id</td>
+          <td>SKU ID</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">0.04s</td>
+          <td class="msg-col"></td>
+        </tr>
+        
+        <tr class="detail-row" id="d-sku_id">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">getprop ro.boot.sku</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">match /.+/</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-build_number', this)">
+          <td class="id-col">build_number</td>
+          <td>Build Number</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">0.05s</td>
+          <td class="msg-col"></td>
+        </tr>
+        
+        <tr class="detail-row" id="d-build_number">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">getprop ro.build.display.id</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">match /.+/</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-android_version', this)">
+          <td class="id-col">android_version</td>
+          <td>Android Version</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">0.05s</td>
+          <td class="msg-col"></td>
+        </tr>
+        
+        <tr class="detail-row" id="d-android_version">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">getprop ro.build.version.release</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">match /^[0-9]+/</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-kernel_version', this)">
+          <td class="id-col">kernel_version</td>
+          <td>Kernel 版本</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">0.05s</td>
+          <td class="msg-col"></td>
+        </tr>
+        
+        <tr class="detail-row" id="d-kernel_version">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">uname -r</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">match /^[0-9]+\.[0-9]+\./</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-selinux_enforcing', this)">
+          <td class="id-col">selinux_enforcing</td>
+          <td>SELinux Enforcing</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">0.05s</td>
+          <td class="msg-col"></td>
+        </tr>
+        
+        <tr class="detail-row" id="d-selinux_enforcing">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">getenforce</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">== "Enforcing"</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-partition_check', this)">
+          <td class="id-col">partition_check</td>
+          <td>Partition 完整性</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">0.08s</td>
+          <td class="msg-col"></td>
+        </tr>
+        
+        <tr class="detail-row" id="d-partition_check">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">ls /dev/block/by-name/ | wc -l</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">match /^[1-9][0-9]+$/</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-adb_reboot', this)">
+          <td class="id-col">adb_reboot</td>
+          <td>ADB Reboot 驗證</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">41.46s</td>
+          <td class="msg-col">ADB reboot + boot completed OK</td>
+        </tr>
+        
+        <tr class="detail-row" id="d-adb_reboot">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">suspend.reboot | boot_timeout=120</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">reboot succeeds</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+      </table>
+    </div>
+  </div>
+  
+  <div class="cat-section collapsed" id="sec-Firmware">
+    <div class="cat-section-header" onclick="toggleSection('sec-Firmware')">
+      <h3>
+        <span class="status s-PASS">
+          ✓
+        </span>
+        Firmware
+        <span class="cat-count">3/3</span>
+      </h3>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="cat-table-wrap">
+      <table>
+        <tr><th>ID</th><th>Test</th><th>Status</th><th>Duration</th><th>Message</th></tr>
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-fw_wwan', this)">
+          <td class="id-col">fw_wwan</td>
+          <td>WWAN Module Firmware</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">0.05s</td>
+          <td class="msg-col"></td>
+        </tr>
+        
+        <tr class="detail-row" id="d-fw_wwan">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">getprop gsm.version.baseband</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">match /.+/</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-fw_touch', this)">
+          <td class="id-col">fw_touch</td>
+          <td>Touch Controller Firmware</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">0.06s</td>
+          <td class="msg-col"></td>
+        </tr>
+        
+        <tr class="detail-row" id="d-fw_touch">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">cat /sys/devices/platform/soc/a94000.i2c/i2c-5/5-002a/fw_version</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">match /.+/</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-fw_keypad', this)">
+          <td class="id-col">fw_keypad</td>
+          <td>Keypad MCU Firmware</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">0.06s</td>
+          <td class="msg-col"></td>
+        </tr>
+        
+        <tr class="detail-row" id="d-fw_keypad">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">cat /sys/devices/platform/soc/98c000.i2c/i2c-2/2-0012/fw</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">match /.+/</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+      </table>
+    </div>
+  </div>
+  
+  <div class="cat-section " id="sec-Display">
+    <div class="cat-section-header" onclick="toggleSection('sec-Display')">
+      <h3>
+        <span class="status s-FAIL">
+          ✗
+        </span>
+        Display
+        <span class="cat-count">2/3</span>
+      </h3>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="cat-table-wrap">
+      <table>
+        <tr><th>ID</th><th>Test</th><th>Status</th><th>Duration</th><th>Message</th></tr>
+        
+        <tr data-status="ERROR" class="has-detail" onclick="toggleDetail('d-display_normal', this)">
+          <td class="id-col">display_normal</td>
+          <td>螢幕顯示正常</td>
+          <td><span class="status s-ERROR">ERROR</span></td>
+          <td class="dur-col">1.59s</td>
+          <td class="msg-col">Client error '401 Unauthorized' for url 'https://api.openai.com/v1/chat/completions'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/401</td>
+        </tr>
+        
+        <tr class="detail-row" id="d-display_normal">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">Screenshot + LLM: 螢幕是否正常顯示？是否有異常色塊或花屏？</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-brightness_settable', this)">
+          <td class="id-col">brightness_settable</td>
+          <td>螢幕亮度寫入驗證</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">0.13s</td>
+          <td class="msg-col"></td>
+        </tr>
+        
+        <tr class="detail-row" id="d-brightness_settable">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">settings put system screen_brightness 128 && settings get system screen_brightness</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">contains "128"</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-auto_rotate', this)">
+          <td class="id-col">auto_rotate</td>
+          <td>自動旋轉功能</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">0.08s</td>
+          <td class="msg-col"></td>
+        </tr>
+        
+        <tr class="detail-row" id="d-auto_rotate">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">settings get system accelerometer_rotation</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">match /^[01]$/</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+      </table>
+    </div>
+  </div>
+  
+  <div class="cat-section collapsed" id="sec-Touchscreen">
+    <div class="cat-section-header" onclick="toggleSection('sec-Touchscreen')">
+      <h3>
+        <span class="status s-PASS">
+          ✓
+        </span>
+        Touchscreen
+        <span class="cat-count">1/1</span>
+      </h3>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="cat-table-wrap">
+      <table>
+        <tr><th>ID</th><th>Test</th><th>Status</th><th>Duration</th><th>Message</th></tr>
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-touch_responsive', this)">
+          <td class="id-col">touch_responsive</td>
+          <td>觸控裝置存在</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">0.10s</td>
+          <td class="msg-col"></td>
+        </tr>
+        
+        <tr class="detail-row" id="d-touch_responsive">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">dumpsys input | grep -iE 'touchscreen|touch_mt'</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">match /(TOUCHSCREEN|TOUCH_MT)/</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+      </table>
+    </div>
+  </div>
+  
+  <div class="cat-section collapsed" id="sec-Sensor">
+    <div class="cat-section-header" onclick="toggleSection('sec-Sensor')">
+      <h3>
+        <span class="status s-PASS">
+          ✓
+        </span>
+        Sensor
+        <span class="cat-count">6/6</span>
+      </h3>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="cat-table-wrap">
+      <table>
+        <tr><th>ID</th><th>Test</th><th>Status</th><th>Duration</th><th>Message</th></tr>
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-sensor_accelerometer', this)">
+          <td class="id-col">sensor_accelerometer</td>
+          <td>加速度計感測器存在</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">0.08s</td>
+          <td class="msg-col"></td>
+        </tr>
+        
+        <tr class="detail-row" id="d-sensor_accelerometer">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">dumpsys sensorservice | grep -i 'accelerometer.*Non-wakeup'</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">match /sensor\.accelerometer/</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-sensor_accelerometer_data', this)">
+          <td class="id-col">sensor_accelerometer_data</td>
+          <td>加速度計數據驗證</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">0.07s</td>
+          <td class="msg-col"></td>
+        </tr>
+        
+        <tr class="detail-row" id="d-sensor_accelerometer_data">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">dumpsys sensorservice | grep -A1 'Accelerometer Non-wakeup: last' | tail -1</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">match /-?[0-9]+\.[0-9]+/</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-sensor_gyroscope', this)">
+          <td class="id-col">sensor_gyroscope</td>
+          <td>陀螺儀感測器存在</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">0.09s</td>
+          <td class="msg-col"></td>
+        </tr>
+        
+        <tr class="detail-row" id="d-sensor_gyroscope">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">dumpsys sensorservice | grep -i 'gyroscope.*Non-wakeup'</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">match /sensor\.gyroscope/</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-sensor_gyroscope_data', this)">
+          <td class="id-col">sensor_gyroscope_data</td>
+          <td>陀螺儀 Driver 驗證</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">0.09s</td>
+          <td class="msg-col"></td>
+        </tr>
+        
+        <tr class="detail-row" id="d-sensor_gyroscope_data">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">dumpsys sensorservice | grep 'lsm6dst Gyroscope Non-wakeup' | grep -o 'ver: [0-9]*'</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">match /ver: [0-9]+/</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-sensor_light', this)">
+          <td class="id-col">sensor_light</td>
+          <td>光線感測器</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">0.07s</td>
+          <td class="msg-col"></td>
+        </tr>
+        
+        <tr class="detail-row" id="d-sensor_light">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">dumpsys sensorservice | grep -i 'light.*sensor'</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">match /(light|als)/</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-sensor_magnetic', this)">
+          <td class="id-col">sensor_magnetic</td>
+          <td>磁力計</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">0.05s</td>
+          <td class="msg-col"></td>
+        </tr>
+        
+        <tr class="detail-row" id="d-sensor_magnetic">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">dumpsys sensorservice | grep -i 'magnetic'</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">match /(magnetic|compass)/</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+      </table>
+    </div>
+  </div>
+  
+  <div class="cat-section " id="sec-Camera">
+    <div class="cat-section-header" onclick="toggleSection('sec-Camera')">
+      <h3>
+        <span class="status s-FAIL">
+          ✗
+        </span>
+        Camera
+        <span class="cat-count">3/5</span>
+      </h3>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="cat-table-wrap">
+      <table>
+        <tr><th>ID</th><th>Test</th><th>Status</th><th>Duration</th><th>Message</th></tr>
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-camera_available', this)">
+          <td class="id-col">camera_available</td>
+          <td>相機裝置可用</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">0.09s</td>
+          <td class="msg-col"></td>
+        </tr>
+        
+        <tr class="detail-row" id="d-camera_available">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">dumpsys media.camera | grep 'Number of camera devices'</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">match /Number of camera devices: [1-9]/</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-camera_rear_capture', this)">
+          <td class="id-col">camera_rear_capture</td>
+          <td>後鏡頭拍照</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">13.87s</td>
+          <td class="msg-col">Captured IMG_20260325_124315.jpg (5877924 bytes, back camera)</td>
+        </tr>
+        
+        <tr class="detail-row" id="d-camera_rear_capture">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">camera.capture_photo | camera=back | wait_seconds=5</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">capture_photo succeeds</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="SKIP" class="has-detail" onclick="toggleDetail('d-camera_front_capture', this)">
+          <td class="id-col">camera_front_capture</td>
+          <td>前鏡頭拍照</td>
+          <td><span class="status s-SKIP">SKIP</span></td>
+          <td class="dur-col">0.15s</td>
+          <td class="msg-col">Device has 1 camera(s), no front camera</td>
+        </tr>
+        
+        <tr class="detail-row" id="d-camera_front_capture">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">camera.capture_photo | camera=front | wait_seconds=5</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">capture_photo succeeds</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="ERROR" class="has-detail" onclick="toggleDetail('d-camera_image_quality', this)">
+          <td class="id-col">camera_image_quality</td>
+          <td>照片品質驗證</td>
+          <td><span class="status s-ERROR">ERROR</span></td>
+          <td class="dur-col">0.92s</td>
+          <td class="msg-col">Client error '401 Unauthorized' for url 'https://api.openai.com/v1/chat/completions'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/401</td>
+        </tr>
+        
+        <tr class="detail-row" id="d-camera_image_quality">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">camera.verify_latest_photo | verify_prompt=照片是否清晰、非全黑、非全白、無明顯色偏？</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">verify_latest_photo succeeds</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-video_encode', this)">
+          <td class="id-col">video_encode</td>
+          <td>影片編碼能力</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">2.69s</td>
+          <td class="msg-col"></td>
+        </tr>
+        
+        <tr class="detail-row" id="d-video_encode">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">screenrecord --time-limit 2 /sdcard/test_video.mp4 && stat -c %s /sdcard/test_video.mp4 && rm -f /sdcard/test_video.mp4</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">match /^[1-9][0-9]+/</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+      </table>
+    </div>
+  </div>
+  
+  <div class="cat-section collapsed" id="sec-Audio">
+    <div class="cat-section-header" onclick="toggleSection('sec-Audio')">
+      <h3>
+        <span class="status s-PASS">
+          ✓
+        </span>
+        Audio
+        <span class="cat-count">3/5</span>
+      </h3>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="cat-table-wrap">
+      <table>
+        <tr><th>ID</th><th>Test</th><th>Status</th><th>Duration</th><th>Message</th></tr>
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-audio_playback', this)">
+          <td class="id-col">audio_playback</td>
+          <td>音頻播放</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">2.32s</td>
+          <td class="msg-col">Audio is playing (/product/media/audio/alarms/Alarm_Classic.ogg)</td>
+        </tr>
+        
+        <tr class="detail-row" id="d-audio_playback">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">audio.play_and_check | play_duration=2</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">play_and_check succeeds</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-audio_volume', this)">
+          <td class="id-col">audio_volume</td>
+          <td>音量控制</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">0.07s</td>
+          <td class="msg-col">Volume set to 7/15 and verified</td>
+        </tr>
+        
+        <tr class="detail-row" id="d-audio_volume">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">audio.volume_control</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">volume_control succeeds</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-audio_microphone', this)">
+          <td class="id-col">audio_microphone</td>
+          <td>麥克風靜音控制</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">0.02s</td>
+          <td class="msg-col">Microphone mute/unmute OK</td>
+        </tr>
+        
+        <tr class="detail-row" id="d-audio_microphone">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">audio.microphone_test</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">microphone_test succeeds</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="SKIP" class="has-detail" onclick="toggleDetail('d-audio_devices', this)">
+          <td class="id-col">audio_devices</td>
+          <td>音訊裝置偵測</td>
+          <td><span class="status s-SKIP">SKIP</span></td>
+          <td class="dur-col">0.00s</td>
+          <td class="msg-col">getAudioDeviceTypes not in installed Snippet APK</td>
+        </tr>
+        
+        <tr class="detail-row" id="d-audio_devices">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">audio.list_devices</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">list_devices succeeds</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="SKIP" class="has-detail" onclick="toggleDetail('d-audio_route', this)">
+          <td class="id-col">audio_route</td>
+          <td>音訊路由資訊</td>
+          <td><span class="status s-SKIP">SKIP</span></td>
+          <td class="dur-col">0.00s</td>
+          <td class="msg-col">Audio route RPC not in installed Snippet APK</td>
+        </tr>
+        
+        <tr class="detail-row" id="d-audio_route">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">audio.audio_route</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">audio_route succeeds</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+      </table>
+    </div>
+  </div>
+  
+  <div class="cat-section collapsed" id="sec-WiFi">
+    <div class="cat-section-header" onclick="toggleSection('sec-WiFi')">
+      <h3>
+        <span class="status s-PASS">
+          ✓
+        </span>
+        WiFi
+        <span class="cat-count">7/8</span>
+      </h3>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="cat-table-wrap">
+      <table>
+        <tr><th>ID</th><th>Test</th><th>Status</th><th>Duration</th><th>Message</th></tr>
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-wifi_connected', this)">
+          <td class="id-col">wifi_connected</td>
+          <td>WiFi 連線</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">0.07s</td>
+          <td class="msg-col"></td>
+        </tr>
+        
+        <tr class="detail-row" id="d-wifi_connected">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">cmd wifi status</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">contains "Wifi is connected"</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-wifi_scan', this)">
+          <td class="id-col">wifi_scan</td>
+          <td>WiFi 掃描</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">5.34s</td>
+          <td class="msg-col">Found 31 WiFi networks</td>
+        </tr>
+        
+        <tr class="detail-row" id="d-wifi_scan">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">wifi.scan</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">scan succeeds</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-wifi_scan_ssid', this)">
+          <td class="id-col">wifi_scan_ssid</td>
+          <td>WiFi 尋找指定 SSID</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">5.13s</td>
+          <td class="msg-col">Found SSID 'Billy_iHome' among 20 networks</td>
+        </tr>
+        
+        <tr class="detail-row" id="d-wifi_scan_ssid">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">wifi.scan_for_ssid | expected_ssid=Billy_iHome</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">scan_for_ssid succeeds</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-wifi_toggle', this)">
+          <td class="id-col">wifi_toggle</td>
+          <td>WiFi 開關切換</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">8.46s</td>
+          <td class="msg-col">WiFi toggle OK (disable→enable→reconnected)</td>
+        </tr>
+        
+        <tr class="detail-row" id="d-wifi_toggle">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">wifi.toggle</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">toggle succeeds</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-wifi_connection_info', this)">
+          <td class="id-col">wifi_connection_info</td>
+          <td>WiFi 連線品質</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">0.10s</td>
+          <td class="msg-col">SSID: Billy_iHome, RSSI: unavailable, linkSpeed: 0 Mbps</td>
+        </tr>
+        
+        <tr class="detail-row" id="d-wifi_connection_info">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">wifi.connection_info | min_rssi=-80</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">connection_info succeeds</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-wifi_dhcp', this)">
+          <td class="id-col">wifi_dhcp</td>
+          <td>WiFi DHCP 分配</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">0.01s</td>
+          <td class="msg-col">DHCP OK: ip=-2130597696, gateway=16885952, dns1=16885952</td>
+        </tr>
+        
+        <tr class="detail-row" id="d-wifi_dhcp">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">wifi.dhcp_info</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">dhcp_info succeeds</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-wifi_5ghz', this)">
+          <td class="id-col">wifi_5ghz</td>
+          <td>WiFi 5GHz 支援</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">0.00s</td>
+          <td class="msg-col">5GHz supported</td>
+        </tr>
+        
+        <tr class="detail-row" id="d-wifi_5ghz">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">wifi.is_5ghz_supported</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">is_5ghz_supported succeeds</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="SKIP" class="has-detail" onclick="toggleDetail('d-wifi_hotspot', this)">
+          <td class="id-col">wifi_hotspot</td>
+          <td>WiFi 熱點開關</td>
+          <td><span class="status s-SKIP">SKIP</span></td>
+          <td class="dur-col">0.01s</td>
+          <td class="msg-col">Hotspot not supported: <AndroidDevice|DBB260100011> 
+-------------- Java Stacktrace ---------------
+jav</td>
+        </tr>
+        
+        <tr class="detail-row" id="d-wifi_hotspot">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">wifi.hotspot</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">hotspot succeeds</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+      </table>
+    </div>
+  </div>
+  
+  <div class="cat-section collapsed" id="sec-Bluetooth">
+    <div class="cat-section-header" onclick="toggleSection('sec-Bluetooth')">
+      <h3>
+        <span class="status s-PASS">
+          ✓
+        </span>
+        Bluetooth
+        <span class="cat-count">6/6</span>
+      </h3>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="cat-table-wrap">
+      <table>
+        <tr><th>ID</th><th>Test</th><th>Status</th><th>Duration</th><th>Message</th></tr>
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-bluetooth_enabled', this)">
+          <td class="id-col">bluetooth_enabled</td>
+          <td>藍牙已啟用</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">0.14s</td>
+          <td class="msg-col"></td>
+        </tr>
+        
+        <tr class="detail-row" id="d-bluetooth_enabled">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">dumpsys bluetooth_manager | grep 'enabled'</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">contains "enabled"</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-ble_scan', this)">
+          <td class="id-col">ble_scan</td>
+          <td>BLE 裝置掃描</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">6.18s</td>
+          <td class="msg-col">BLE scan completed, found 184 devices</td>
+        </tr>
+        
+        <tr class="detail-row" id="d-ble_scan">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">bluetooth.ble_scan | scan_duration=5</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">ble_scan succeeds</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-bt_toggle', this)">
+          <td class="id-col">bt_toggle</td>
+          <td>藍牙開關切換</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">20.79s</td>
+          <td class="msg-col">Bluetooth toggle OK (disable→enable)</td>
+        </tr>
+        
+        <tr class="detail-row" id="d-bt_toggle">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">bluetooth.toggle</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">toggle succeeds</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-bt_classic_scan', this)">
+          <td class="id-col">bt_classic_scan</td>
+          <td>Classic BT 掃描</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">19.01s</td>
+          <td class="msg-col">Classic BT discovery completed, found 35 devices</td>
+        </tr>
+        
+        <tr class="detail-row" id="d-bt_classic_scan">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">bluetooth.classic_scan</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">classic_scan succeeds</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-bt_adapter_info', this)">
+          <td class="id-col">bt_adapter_info</td>
+          <td>BT Adapter 資訊</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">0.02s</td>
+          <td class="msg-col">BT adapter: T70 (48:21:0B:96:F6:36)</td>
+        </tr>
+        
+        <tr class="detail-row" id="d-bt_adapter_info">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">bluetooth.adapter_info</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">adapter_info succeeds</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-bt_paired_devices', this)">
+          <td class="id-col">bt_paired_devices</td>
+          <td>已配對裝置列表</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">0.00s</td>
+          <td class="msg-col">Found 0 paired BT devices</td>
+        </tr>
+        
+        <tr class="detail-row" id="d-bt_paired_devices">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">bluetooth.paired_devices</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">paired_devices succeeds</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+      </table>
+    </div>
+  </div>
+  
+  <div class="cat-section collapsed" id="sec-NFC">
+    <div class="cat-section-header" onclick="toggleSection('sec-NFC')">
+      <h3>
+        <span class="status s-PASS">
+          ✓
+        </span>
+        NFC
+        <span class="cat-count">1/1</span>
+      </h3>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="cat-table-wrap">
+      <table>
+        <tr><th>ID</th><th>Test</th><th>Status</th><th>Duration</th><th>Message</th></tr>
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-nfc_enabled', this)">
+          <td class="id-col">nfc_enabled</td>
+          <td>NFC 已啟用</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">0.10s</td>
+          <td class="msg-col"></td>
+        </tr>
+        
+        <tr class="detail-row" id="d-nfc_enabled">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">dumpsys nfc | grep 'mState='</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">contains "on"</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+      </table>
+    </div>
+  </div>
+  
+  <div class="cat-section collapsed" id="sec-GPS">
+    <div class="cat-section-header" onclick="toggleSection('sec-GPS')">
+      <h3>
+        <span class="status s-PASS">
+          ✓
+        </span>
+        GPS
+        <span class="cat-count">2/2</span>
+      </h3>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="cat-table-wrap">
+      <table>
+        <tr><th>ID</th><th>Test</th><th>Status</th><th>Duration</th><th>Message</th></tr>
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-gps_enabled', this)">
+          <td class="id-col">gps_enabled</td>
+          <td>GPS 定位已開啟</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">0.09s</td>
+          <td class="msg-col"></td>
+        </tr>
+        
+        <tr class="detail-row" id="d-gps_enabled">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">dumpsys location | grep 'gps provider'</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">contains "gps provider"</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-gps_satellites', this)">
+          <td class="id-col">gps_satellites</td>
+          <td>GPS 衛星訊號驗證</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">0.09s</td>
+          <td class="msg-col"></td>
+        </tr>
+        
+        <tr class="detail-row" id="d-gps_satellites">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">dumpsys location | grep -iE '(gnss|satellites|svCount|sv_count)'</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">match /(gnss|satellite|svCount)/</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+      </table>
+    </div>
+  </div>
+  
+  <div class="cat-section collapsed" id="sec-Telephony">
+    <div class="cat-section-header" onclick="toggleSection('sec-Telephony')">
+      <h3>
+        <span class="status s-PASS">
+          ✓
+        </span>
+        Telephony
+        <span class="cat-count">0/7</span>
+      </h3>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="cat-table-wrap">
+      <table>
+        <tr><th>ID</th><th>Test</th><th>Status</th><th>Duration</th><th>Message</th></tr>
+        
+        <tr data-status="SKIP" class="has-detail" onclick="toggleDetail('d-sim_status', this)">
+          <td class="id-col">sim_status</td>
+          <td>SIM 卡狀態</td>
+          <td><span class="status s-SKIP">SKIP</span></td>
+          <td class="dur-col">0.00s</td>
+          <td class="msg-col">Skipped: device lacks 'has_sim'</td>
+        </tr>
+        
+        <tr class="detail-row" id="d-sim_status">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">dumpsys telephony.registry | grep mServiceState</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">not contains "OUT_OF_SERVICE"</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="SKIP" class="has-detail" onclick="toggleDetail('d-network_type', this)">
+          <td class="id-col">network_type</td>
+          <td>行動網路類型</td>
+          <td><span class="status s-SKIP">SKIP</span></td>
+          <td class="dur-col">0.00s</td>
+          <td class="msg-col">Skipped: dependency 'sim_status' did not pass</td>
+        </tr>
+        
+        <tr class="detail-row" id="d-network_type">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">telephony.check_signal | expected_data_type=LTE|NR</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">check_signal succeeds</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="SKIP" class="has-detail" onclick="toggleDetail('d-sms_send', this)">
+          <td class="id-col">sms_send</td>
+          <td>SMS 簡訊發送</td>
+          <td><span class="status s-SKIP">SKIP</span></td>
+          <td class="dur-col">0.00s</td>
+          <td class="msg-col">Skipped: dependency 'sim_status' did not pass</td>
+        </tr>
+        
+        <tr class="detail-row" id="d-sms_send">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">telephony.send_sms | to_number= | body=smoke-test-outbound-{timestamp}</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">send_sms succeeds</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="SKIP" class="has-detail" onclick="toggleDetail('d-sms_receive', this)">
+          <td class="id-col">sms_receive</td>
+          <td>SMS 簡訊接收</td>
+          <td><span class="status s-SKIP">SKIP</span></td>
+          <td class="dur-col">0.00s</td>
+          <td class="msg-col">Skipped: dependency 'sms_send' did not pass</td>
+        </tr>
+        
+        <tr class="detail-row" id="d-sms_receive">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">telephony.receive_sms | body=smoke-test-inbound-{timestamp} | timeout=30</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">receive_sms succeeds</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="SKIP" class="has-detail" onclick="toggleDetail('d-phone_call', this)">
+          <td class="id-col">phone_call</td>
+          <td>撥打電話</td>
+          <td><span class="status s-SKIP">SKIP</span></td>
+          <td class="dur-col">0.00s</td>
+          <td class="msg-col">Skipped: dependency 'sim_status' did not pass</td>
+        </tr>
+        
+        <tr class="detail-row" id="d-phone_call">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">telephony.make_call | to_number= | call_duration=5</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">make_call succeeds</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="SKIP" class="has-detail" onclick="toggleDetail('d-voice_network_type', this)">
+          <td class="id-col">voice_network_type</td>
+          <td>語音網路類型</td>
+          <td><span class="status s-SKIP">SKIP</span></td>
+          <td class="dur-col">0.00s</td>
+          <td class="msg-col">Skipped: dependency 'sim_status' did not pass</td>
+        </tr>
+        
+        <tr class="detail-row" id="d-voice_network_type">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">telephony.check_voice_type</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">check_voice_type succeeds</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="SKIP" class="has-detail" onclick="toggleDetail('d-sim_info', this)">
+          <td class="id-col">sim_info</td>
+          <td>SIM 卡資訊</td>
+          <td><span class="status s-SKIP">SKIP</span></td>
+          <td class="dur-col">0.00s</td>
+          <td class="msg-col">Skipped: dependency 'sim_status' did not pass</td>
+        </tr>
+        
+        <tr class="detail-row" id="d-sim_info">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">telephony.sim_info</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">sim_info succeeds</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+      </table>
+    </div>
+  </div>
+  
+  <div class="cat-section collapsed" id="sec-Network">
+    <div class="cat-section-header" onclick="toggleSection('sec-Network')">
+      <h3>
+        <span class="status s-PASS">
+          ✓
+        </span>
+        Network
+        <span class="cat-count">3/4</span>
+      </h3>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="cat-table-wrap">
+      <table>
+        <tr><th>ID</th><th>Test</th><th>Status</th><th>Duration</th><th>Message</th></tr>
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-internet_access', this)">
+          <td class="id-col">internet_access</td>
+          <td>網路連通 (ping)</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">2.10s</td>
+          <td class="msg-col"></td>
+        </tr>
+        
+        <tr class="detail-row" id="d-internet_access">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">ping -c 3 8.8.8.8</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">match /[1-3] received/</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-dns_resolution', this)">
+          <td class="id-col">dns_resolution</td>
+          <td>DNS 解析</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">0.10s</td>
+          <td class="msg-col"></td>
+        </tr>
+        
+        <tr class="detail-row" id="d-dns_resolution">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">ping -c 1 -W 5 google.com</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">match /[1] received/</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-download_wifi', this)">
+          <td class="id-col">download_wifi</td>
+          <td>HTTP 下載 (WiFi)</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">0.18s</td>
+          <td class="msg-col">HTTP 204 OK (connectivity check)</td>
+        </tr>
+        
+        <tr class="detail-row" id="d-download_wifi">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">network.http_download | network_mode=wifi | url=https://www.google.com/generate_204</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">http_download succeeds</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="SKIP" class="has-detail" onclick="toggleDetail('d-download_mobile', this)">
+          <td class="id-col">download_mobile</td>
+          <td>HTTP 下載 (行動數據)</td>
+          <td><span class="status s-SKIP">SKIP</span></td>
+          <td class="dur-col">0.00s</td>
+          <td class="msg-col">Skipped: dependency 'sim_status' did not pass</td>
+        </tr>
+        
+        <tr class="detail-row" id="d-download_mobile">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">network.http_download | network_mode=mobile</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">http_download succeeds</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+      </table>
+    </div>
+  </div>
+  
+  <div class="cat-section collapsed" id="sec-Storage">
+    <div class="cat-section-header" onclick="toggleSection('sec-Storage')">
+      <h3>
+        <span class="status s-PASS">
+          ✓
+        </span>
+        Storage
+        <span class="cat-count">2/2</span>
+      </h3>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="cat-table-wrap">
+      <table>
+        <tr><th>ID</th><th>Test</th><th>Status</th><th>Duration</th><th>Message</th></tr>
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-storage_available', this)">
+          <td class="id-col">storage_available</td>
+          <td>內部儲存可用</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">0.07s</td>
+          <td class="msg-col"></td>
+        </tr>
+        
+        <tr class="detail-row" id="d-storage_available">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">df /data | awk 'NR==2{print $4}'</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">match /[0-9]{7,}/</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-memory_available', this)">
+          <td class="id-col">memory_available</td>
+          <td>記憶體可用量正常</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">0.07s</td>
+          <td class="msg-col"></td>
+        </tr>
+        
+        <tr class="detail-row" id="d-memory_available">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">cat /proc/meminfo | grep MemAvailable</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">match /MemAvailable:\s+[1-9][0-9]+ kB/</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+      </table>
+    </div>
+  </div>
+  
+  <div class="cat-section " id="sec-Power">
+    <div class="cat-section-header" onclick="toggleSection('sec-Power')">
+      <h3>
+        <span class="status s-FAIL">
+          ✗
+        </span>
+        Power
+        <span class="cat-count">4/5</span>
+      </h3>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="cat-table-wrap">
+      <table>
+        <tr><th>ID</th><th>Test</th><th>Status</th><th>Duration</th><th>Message</th></tr>
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-battery_status', this)">
+          <td class="id-col">battery_status</td>
+          <td>電池狀態</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">0.07s</td>
+          <td class="msg-col"></td>
+        </tr>
+        
+        <tr class="detail-row" id="d-battery_status">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">dumpsys battery | grep 'status'</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">match /status: [2-5]/</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-charging_connected', this)">
+          <td class="id-col">charging_connected</td>
+          <td>充電連線狀態</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">0.07s</td>
+          <td class="msg-col"></td>
+        </tr>
+        
+        <tr class="detail-row" id="d-charging_connected">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">dumpsys battery | grep 'powered'</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">match /.*powered: true/</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-charging_detection', this)">
+          <td class="id-col">charging_detection</td>
+          <td>充電偵測測試</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">10.18s</td>
+          <td class="msg-col">Charging detection OK (power off → power on → charging recovered)</td>
+        </tr>
+        
+        <tr class="detail-row" id="d-charging_detection">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">charging.detect | off_duration=5 | settle_time=5</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">detect succeeds</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-thermal_zone', this)">
+          <td class="id-col">thermal_zone</td>
+          <td>Thermal Driver</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">0.07s</td>
+          <td class="msg-col"></td>
+        </tr>
+        
+        <tr class="detail-row" id="d-thermal_zone">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">ls /sys/class/thermal/thermal_zone*/type | wc -l</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">match /^[1-9][0-9]*$/</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+        <tr data-status="FAIL" class="has-detail" onclick="toggleDetail('d-suspend_deep_sleep', this)">
+          <td class="id-col">suspend_deep_sleep</td>
+          <td>Suspend/Resume + Deep Sleep</td>
+          <td><span class="status s-FAIL">FAIL</span></td>
+          <td class="dur-col">130.65s</td>
+          <td class="msg-col">Deep sleep not entered during 120s suspend. Before: {'aosd': 0, 'cxsd': 0, 'ddr': 0}, After: {'aosd': 0, 'cxsd': 0, 'ddr': 0}</td>
+        </tr>
+        
+        <tr class="detail-row" id="d-suspend_deep_sleep">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">suspend.deep_sleep | suspend_duration=120 | adb_timeout=60</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">deep_sleep succeeds</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+      </table>
+    </div>
+  </div>
+  
+  <div class="cat-section collapsed" id="sec-USB">
+    <div class="cat-section-header" onclick="toggleSection('sec-USB')">
+      <h3>
+        <span class="status s-PASS">
+          ✓
+        </span>
+        USB
+        <span class="cat-count">1/1</span>
+      </h3>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="cat-table-wrap">
+      <table>
+        <tr><th>ID</th><th>Test</th><th>Status</th><th>Duration</th><th>Message</th></tr>
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-usb_gadget', this)">
+          <td class="id-col">usb_gadget</td>
+          <td>USB Gadget 模式</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">0.04s</td>
+          <td class="msg-col"></td>
+        </tr>
+        
+        <tr class="detail-row" id="d-usb_gadget">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">getprop sys.usb.config</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">match /(adb|mtp)/</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+      </table>
+    </div>
+  </div>
+  
+  <div class="cat-section collapsed" id="sec-System">
+    <div class="cat-section-header" onclick="toggleSection('sec-System')">
+      <h3>
+        <span class="status s-PASS">
+          ✓
+        </span>
+        System
+        <span class="cat-count">1/1</span>
+      </h3>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="cat-table-wrap">
+      <table>
+        <tr><th>ID</th><th>Test</th><th>Status</th><th>Duration</th><th>Message</th></tr>
+        
+        <tr data-status="PASS" class="has-detail" onclick="toggleDetail('d-no_system_crash', this)">
+          <td class="id-col">no_system_crash</td>
+          <td>無系統崩潰</td>
+          <td><span class="status s-PASS">PASS</span></td>
+          <td class="dur-col">0.08s</td>
+          <td class="msg-col"></td>
+        </tr>
+        
+        <tr class="detail-row" id="d-no_system_crash">
+          <td colspan="5">
+            <div class="detail-content">
+              <div class="detail-item">
+                <span class="detail-label">Procedure</span>
+                <span class="detail-value">logcat -b crash -d | grep 'FATAL EXCEPTION' | wc -l</span>
+              </div>
+              
+              <div class="detail-item">
+                <span class="detail-label">Pass Criteria</span>
+                <span class="detail-value">match /^0$/</span>
+              </div>
+              
+            </div>
+          </td>
+        </tr>
+        
+        
+      </table>
+    </div>
+  </div>
+  
+
+  
+
+  <footer class="animate-in d6">
+    <span>smoke-test-ai</span>
+    <span>Generated 2026-03-25 12:47:41</span>
+  </footer>
+</div>
+
+<button class="back-to-top" id="btt" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="Back to top">&#x2191;</button>
+
+<script>
+function toggleDetail(id, row) {
+  var el = document.getElementById(id);
+  if (el) {
+    el.classList.toggle('show');
+    if (row) row.classList.toggle('expanded');
+  }
+}
+function toggleSection(id) {
+  document.getElementById(id).classList.toggle('collapsed');
+}
+function jumpToSection(id) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  el.classList.remove('collapsed');
+  el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function filterTests(status) {
+  // Update active button
+  document.querySelectorAll('.filter-btn').forEach(function(b) { b.classList.remove('active'); });
+  event.target.classList.add('active');
+  // Filter rows
+  document.querySelectorAll('tr[data-status]').forEach(function(row) {
+    if (status === 'all') {
+      row.classList.remove('hidden-by-filter');
+    } else if (status === 'FAIL') {
+      row.classList.toggle('hidden-by-filter', row.dataset.status !== 'FAIL' && row.dataset.status !== 'ERROR');
+    } else {
+      row.classList.toggle('hidden-by-filter', row.dataset.status !== status);
+    }
+  });
+  // Expand sections that have visible rows, collapse those that don't
+  document.querySelectorAll('.cat-section').forEach(function(sec) {
+    var visibleRows = sec.querySelectorAll('tr[data-status]:not(.hidden-by-filter)');
+    if (status !== 'all' && visibleRows.length === 0) {
+      sec.classList.add('collapsed');
+    } else if (status !== 'all') {
+      sec.classList.remove('collapsed');
+    }
+  });
+}
+window.addEventListener('scroll', function() {
+  document.getElementById('btt').classList.toggle('visible', window.scrollY > 400);
+});
+</script>
+</body>
+</html>

@@ -7,8 +7,11 @@ import logging
 WIFI_SSID = "Xiaomi_test"
 WIFI_PASS = "0987654321"
 
-def run_tests(ui: UIHelper, reporter: HTMLReportGenerator):
+def run_tests(ui: UIHelper, reporter: HTMLReportGenerator, ssid=None, password=None):
     logging.info("Running Connectivity Tests (WiFi/BT)...")
+    
+    target_ssid = ssid if ssid else WIFI_SSID
+    target_pass = password if password else WIFI_PASS
     
     # WiFi Tests
     try:
@@ -42,14 +45,14 @@ def run_tests(ui: UIHelper, reporter: HTMLReportGenerator):
             reporter.add_result("Connectivity", "WiFi Scanning", False, "No nearby WiFi Access Points detected")
 
         # --- 2. WiFi Association (Connection Check) ---
-        if WIFI_SSID != "YOUR_WIFI_SSID":
+        if target_ssid and target_ssid != "YOUR_WIFI_SSID":
             # Pre-check if target SSID is in the scan list
-            if WIFI_SSID not in found_aps:
-                logging.warning(f"Target SSID '{WIFI_SSID}' NOT FOUND in scan results. Skipping connection test.")
-                reporter.add_result("Connectivity", "WiFi Association", True, f"SKIPPED: Target SSID '{WIFI_SSID}' not visible in air. (Environment issue, not device failure)")
+            if target_ssid not in found_aps:
+                logging.warning(f"Target SSID '{target_ssid}' NOT FOUND in scan results. Skipping connection test.")
+                reporter.add_result("Connectivity", "WiFi Association", True, f"SKIPPED: Target SSID '{target_ssid}' not visible in air. (Environment issue, not device failure)", status_override="SKIP")
             else:
-                logging.info(f"Connecting to AP: {WIFI_SSID} (Max 30s)...")
-                run_adb_cmd(f'cmd wifi connect-network "{WIFI_SSID}" wpa2 "{WIFI_PASS}"')
+                logging.info(f"Connecting to AP: {target_ssid} (Max 30s)...")
+                run_adb_cmd(f'cmd wifi connect-network "{target_ssid}" wpa2 "{target_pass}"')
                 
                 ip = None
                 last_status = "Unknown"
@@ -69,9 +72,9 @@ def run_tests(ui: UIHelper, reporter: HTMLReportGenerator):
                         logging.info(f"Waiting for IP ({i}/30s)... Status: {last_status}")
 
                 if ip:
-                    reporter.add_result("Connectivity", "WiFi Association", True, f"Connected to {WIFI_SSID} (IP: {ip})")
+                    reporter.add_result("Connectivity", "WiFi Association", True, f"Connected to {target_ssid} (IP: {ip})")
                 else:
-                    reporter.add_result("Connectivity", "WiFi Association", False, f"Failed to get IP address for {WIFI_SSID}. Last status: {last_status}")
+                    reporter.add_result("Connectivity", "WiFi Association", False, f"Failed to get IP address for {target_ssid}. Last status: {last_status}")
             
             # --- WiFi Scanning Test ---
             logging.info("Starting WiFi Scanning test...")

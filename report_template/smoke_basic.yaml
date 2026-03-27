@@ -1,0 +1,593 @@
+test_suite:
+  name: "Basic Smoke Test"
+  timeout: 600
+
+  tests:
+    # ============================================================
+    # Boot & System Info
+    # ============================================================
+    - id: "boot_complete"
+      name: "開機完成驗證"
+      type: "adb_check"
+      category: "Boot"
+      command: "getprop sys.boot_completed"
+      expected: "1"
+
+    - id: "sku_id"
+      name: "SKU ID"
+      type: "adb_shell"
+      category: "Boot"
+      command: "getprop ro.boot.sku"
+      expected_pattern: ".+"
+
+    - id: "build_number"
+      name: "Build Number"
+      type: "adb_shell"
+      category: "Boot"
+      command: "getprop ro.build.display.id"
+      expected_pattern: ".+"
+
+    - id: "android_version"
+      name: "Android Version"
+      type: "adb_shell"
+      category: "Boot"
+      command: "getprop ro.build.version.release"
+      expected_pattern: "^[0-9]+"
+
+    - id: "kernel_version"
+      name: "Kernel 版本"
+      type: "adb_shell"
+      category: "Boot"
+      command: "uname -r"
+      expected_pattern: "^[0-9]+\\.[0-9]+\\."
+
+    # ============================================================
+    # Component Firmware
+    # ============================================================
+    - id: "fw_wwan"
+      name: "WWAN Module Firmware"
+      type: "adb_shell"
+      category: "Firmware"
+      command: "getprop gsm.version.baseband"
+      expected_pattern: ".+"
+
+    - id: "fw_touch"
+      name: "Touch Controller Firmware"
+      type: "adb_shell"
+      category: "Firmware"
+      command: "cat /sys/devices/platform/soc/a94000.i2c/i2c-5/5-002a/fw_version"
+      expected_pattern: ".+"
+
+    - id: "fw_keypad"
+      name: "Keypad MCU Firmware"
+      type: "adb_shell"
+      category: "Firmware"
+      command: "cat /sys/devices/platform/soc/98c000.i2c/i2c-2/2-0012/fw"
+      expected_pattern: ".+"
+
+    - id: "selinux_enforcing"
+      name: "SELinux Enforcing"
+      type: "adb_shell"
+      category: "Boot"
+      command: "getenforce"
+      expected: "Enforcing"
+
+    - id: "partition_check"
+      name: "Partition 完整性"
+      type: "adb_shell"
+      category: "Boot"
+      command: "ls /dev/block/by-name/ | wc -l"
+      expected_pattern: "^[1-9][0-9]+$"
+
+    # ============================================================
+    # Display
+    # ============================================================
+    - id: "display_normal"
+      name: "螢幕顯示正常"
+      type: "screenshot_llm"
+      category: "Display"
+      prompt: "螢幕是否正常顯示？是否有異常色塊或花屏？"
+      pass_criteria: "normal"
+
+    - id: "brightness_settable"
+      name: "螢幕亮度寫入驗證"
+      type: "adb_shell"
+      category: "Display"
+      command: "settings put system screen_brightness 128 && settings get system screen_brightness"
+      expected_contains: "128"
+
+    - id: "auto_rotate"
+      name: "自動旋轉功能"
+      type: "adb_shell"
+      category: "Display"
+      command: "settings get system accelerometer_rotation"
+      expected_pattern: "^[01]$"
+
+    # ============================================================
+    # Touchscreen
+    # ============================================================
+    - id: "touch_responsive"
+      name: "觸控裝置存在"
+      type: "adb_shell"
+      category: "Touchscreen"
+      command: "dumpsys input | grep -iE 'touchscreen|touch_mt'"
+      expected_pattern: "(TOUCHSCREEN|TOUCH_MT)"
+
+    # ============================================================
+    # Sensor
+    # ============================================================
+    - id: "sensor_accelerometer"
+      name: "加速度計感測器存在"
+      type: "adb_shell"
+      category: "Sensor"
+      command: "dumpsys sensorservice | grep -i 'accelerometer.*Non-wakeup'"
+      expected_pattern: "sensor\\.accelerometer"
+
+    - id: "sensor_accelerometer_data"
+      name: "加速度計數據驗證"
+      type: "adb_shell"
+      category: "Sensor"
+      command: "dumpsys sensorservice | grep -A1 'Accelerometer Non-wakeup: last' | tail -1"
+      expected_pattern: "-?[0-9]+\\.[0-9]+"
+      depends_on: "sensor_accelerometer"
+
+    - id: "sensor_gyroscope"
+      name: "陀螺儀感測器存在"
+      type: "adb_shell"
+      category: "Sensor"
+      command: "dumpsys sensorservice | grep -i 'gyroscope.*Non-wakeup'"
+      expected_pattern: "sensor\\.gyroscope"
+
+    - id: "sensor_gyroscope_data"
+      name: "陀螺儀 Driver 驗證"
+      type: "adb_shell"
+      category: "Sensor"
+      command: "dumpsys sensorservice | grep 'lsm6dst Gyroscope Non-wakeup' | grep -o 'ver: [0-9]*'"
+      expected_pattern: "ver: [0-9]+"
+      depends_on: "sensor_gyroscope"
+
+    - id: "sensor_light"
+      name: "光線感測器"
+      type: "adb_shell"
+      category: "Sensor"
+      command: "dumpsys sensorservice | grep -i 'light.*sensor'"
+      expected_pattern: "(light|als)"
+
+    - id: "sensor_magnetic"
+      name: "磁力計"
+      type: "adb_shell"
+      category: "Sensor"
+      command: "dumpsys sensorservice | grep -i 'magnetic'"
+      expected_pattern: "(magnetic|compass)"
+
+    # ============================================================
+    # Camera
+    # ============================================================
+    - id: "camera_available"
+      name: "相機裝置可用"
+      type: "adb_shell"
+      category: "Camera"
+      command: "dumpsys media.camera | grep 'Number of camera devices'"
+      expected_pattern: "Number of camera devices: [1-9]"
+
+    - id: "camera_rear_capture"
+      name: "後鏡頭拍照"
+      type: "camera"
+      category: "Camera"
+      action: "capture_photo"
+      params:
+        camera: "back"
+        wait_seconds: 5
+      depends_on: "camera_available"
+
+    - id: "camera_front_capture"
+      name: "前鏡頭拍照"
+      type: "camera"
+      category: "Camera"
+      action: "capture_photo"
+      params:
+        camera: "front"
+        wait_seconds: 5
+      depends_on: "camera_available"
+
+    - id: "camera_image_quality"
+      name: "照片品質驗證"
+      type: "camera"
+      category: "Camera"
+      action: "verify_latest_photo"
+      params:
+        verify_prompt: "照片是否清晰、非全黑、非全白、無明顯色偏？"
+      depends_on: "camera_rear_capture"
+
+    - id: "video_encode"
+      name: "影片編碼能力"
+      type: "adb_shell"
+      category: "Camera"
+      command: "screenrecord --time-limit 2 /sdcard/test_video.mp4 && stat -c %s /sdcard/test_video.mp4 && rm -f /sdcard/test_video.mp4"
+      expected_pattern: "^[1-9][0-9]+"
+
+    # ============================================================
+    # Audio
+    # ============================================================
+    - id: "audio_playback"
+      name: "音頻播放"
+      type: "audio"
+      category: "Audio"
+      action: "play_and_check"
+      params:
+        play_duration: 2
+
+    - id: "audio_volume"
+      name: "音量控制"
+      type: "audio"
+      category: "Audio"
+      action: "volume_control"
+
+    - id: "audio_microphone"
+      name: "麥克風靜音控制"
+      type: "audio"
+      category: "Audio"
+      action: "microphone_test"
+
+    - id: "audio_devices"
+      name: "音訊裝置偵測"
+      type: "audio"
+      category: "Audio"
+      action: "list_devices"
+
+    - id: "audio_route"
+      name: "音訊路由資訊"
+      type: "audio"
+      category: "Audio"
+      action: "audio_route"
+
+    # ============================================================
+    # WiFi
+    # ============================================================
+    - id: "wifi_connected"
+      name: "WiFi 連線"
+      type: "adb_shell"
+      category: "WiFi"
+      command: "cmd wifi status"
+      expected_contains: "Wifi is connected"
+
+    - id: "wifi_scan"
+      name: "WiFi 掃描"
+      type: "wifi"
+      category: "WiFi"
+      action: "scan"
+
+    - id: "wifi_scan_ssid"
+      name: "WiFi 尋找指定 SSID"
+      type: "wifi"
+      category: "WiFi"
+      action: "scan_for_ssid"
+      params:
+        expected_ssid: "${WIFI_SSID}"
+      depends_on: "wifi_scan"
+
+    - id: "wifi_toggle"
+      name: "WiFi 開關切換"
+      type: "wifi"
+      category: "WiFi"
+      action: "toggle"
+      depends_on: "wifi_connected"
+
+    - id: "wifi_connection_info"
+      name: "WiFi 連線品質"
+      type: "wifi"
+      category: "WiFi"
+      action: "connection_info"
+      params:
+        min_rssi: -80
+      depends_on: "wifi_toggle"
+
+    - id: "wifi_dhcp"
+      name: "WiFi DHCP 分配"
+      type: "wifi"
+      category: "WiFi"
+      action: "dhcp_info"
+      depends_on: "wifi_toggle"
+
+    - id: "wifi_5ghz"
+      name: "WiFi 5GHz 支援"
+      type: "wifi"
+      category: "WiFi"
+      action: "is_5ghz_supported"
+
+    - id: "wifi_hotspot"
+      name: "WiFi 熱點開關"
+      type: "wifi"
+      category: "WiFi"
+      action: "hotspot"
+      depends_on: "wifi_toggle"
+
+    # ============================================================
+    # Bluetooth
+    # ============================================================
+    - id: "bluetooth_enabled"
+      name: "藍牙已啟用"
+      type: "adb_shell"
+      category: "Bluetooth"
+      command: "dumpsys bluetooth_manager | grep 'enabled'"
+      expected_contains: "enabled"
+
+    - id: "ble_scan"
+      name: "BLE 裝置掃描"
+      type: "bluetooth"
+      category: "Bluetooth"
+      action: "ble_scan"
+      params:
+        scan_duration: 5
+      depends_on: "bluetooth_enabled"
+
+    - id: "bt_toggle"
+      name: "藍牙開關切換"
+      type: "bluetooth"
+      category: "Bluetooth"
+      action: "toggle"
+      depends_on: "bluetooth_enabled"
+
+    - id: "bt_classic_scan"
+      name: "Classic BT 掃描"
+      type: "bluetooth"
+      category: "Bluetooth"
+      action: "classic_scan"
+      depends_on: "bt_toggle"
+
+    - id: "bt_adapter_info"
+      name: "BT Adapter 資訊"
+      type: "bluetooth"
+      category: "Bluetooth"
+      action: "adapter_info"
+      depends_on: "bt_toggle"
+
+    - id: "bt_paired_devices"
+      name: "已配對裝置列表"
+      type: "bluetooth"
+      category: "Bluetooth"
+      action: "paired_devices"
+      depends_on: "bt_toggle"
+
+    # ============================================================
+    # NFC
+    # ============================================================
+    - id: "nfc_enabled"
+      name: "NFC 已啟用"
+      type: "adb_shell"
+      category: "NFC"
+      command: "dumpsys nfc | grep 'mState='"
+      expected_contains: "on"
+
+    # ============================================================
+    # GPS
+    # ============================================================
+    - id: "gps_enabled"
+      name: "GPS 定位已開啟"
+      type: "adb_shell"
+      category: "GPS"
+      command: "dumpsys location | grep 'gps provider'"
+      expected_contains: "gps provider"
+
+    - id: "gps_satellites"
+      name: "GPS 衛星訊號驗證"
+      type: "adb_shell"
+      category: "GPS"
+      command: "dumpsys location | grep -iE '(gnss|satellites|svCount|sv_count)'"
+      expected_pattern: "(gnss|satellite|svCount)"
+      depends_on: "gps_enabled"
+
+    # ============================================================
+    # Telephony (需 SIM 卡)
+    # ============================================================
+    - id: "sim_status"
+      name: "SIM 卡狀態"
+      type: "adb_shell"
+      category: "Telephony"
+      command: "dumpsys telephony.registry | grep mServiceState"
+      expected_not_contains: "OUT_OF_SERVICE"
+      requires:
+        device_capability: "has_sim"
+
+    - id: "network_type"
+      name: "行動網路類型"
+      type: "telephony"
+      category: "Telephony"
+      action: "check_signal"
+      params:
+        expected_data_type: "LTE|NR"
+      requires:
+        device_capability: "has_sim"
+      depends_on: "sim_status"
+
+    - id: "sms_send"
+      name: "SMS 簡訊發送"
+      type: "telephony"
+      category: "Telephony"
+      action: "send_sms"
+      params:
+        to_number: "${PEER_PHONE_NUMBER}"
+        body: "smoke-test-outbound-{timestamp}"
+      requires:
+        device_capability: "has_sim"
+      depends_on: "sim_status"
+
+    - id: "sms_receive"
+      name: "SMS 簡訊接收"
+      type: "telephony"
+      category: "Telephony"
+      action: "receive_sms"
+      params:
+        body: "smoke-test-inbound-{timestamp}"
+        timeout: 30
+      requires:
+        device_capability: "has_sim"
+      depends_on: "sms_send"
+
+    - id: "phone_call"
+      name: "撥打電話"
+      type: "telephony"
+      category: "Telephony"
+      action: "make_call"
+      params:
+        to_number: "${PEER_PHONE_NUMBER}"
+        call_duration: 5
+      requires:
+        device_capability: "has_sim"
+      depends_on: "sim_status"
+
+    - id: "voice_network_type"
+      name: "語音網路類型"
+      type: "telephony"
+      category: "Telephony"
+      action: "check_voice_type"
+      requires:
+        device_capability: "has_sim"
+      depends_on: "sim_status"
+
+    - id: "sim_info"
+      name: "SIM 卡資訊"
+      type: "telephony"
+      category: "Telephony"
+      action: "sim_info"
+      requires:
+        device_capability: "has_sim"
+      depends_on: "sim_status"
+
+    # ============================================================
+    # Network
+    # ============================================================
+    - id: "internet_access"
+      name: "網路連通 (ping)"
+      type: "adb_shell"
+      category: "Network"
+      command: "ping -c 3 8.8.8.8"
+      expected_pattern: "[1-3] received"
+      depends_on: "wifi_connected"
+
+    - id: "dns_resolution"
+      name: "DNS 解析"
+      type: "adb_shell"
+      category: "Network"
+      command: "ping -c 1 -W 5 google.com"
+      expected_pattern: "[1] received"
+      depends_on: "wifi_connected"
+      retry: 2
+      retry_delay: 3
+
+    - id: "download_wifi"
+      name: "HTTP 下載 (WiFi)"
+      type: "network"
+      category: "Network"
+      action: "http_download"
+      params:
+        network_mode: "wifi"
+        url: "https://www.google.com/generate_204"
+      depends_on: "wifi_connected"
+
+    - id: "download_mobile"
+      name: "HTTP 下載 (行動數據)"
+      type: "network"
+      category: "Network"
+      action: "http_download"
+      params:
+        network_mode: "mobile"
+      requires:
+        device_capability: "has_sim"
+      depends_on: "sim_status"
+
+    # ============================================================
+    # Storage & Memory
+    # ============================================================
+    - id: "storage_available"
+      name: "內部儲存可用"
+      type: "adb_shell"
+      category: "Storage"
+      command: "df /data | awk 'NR==2{print $4}'"
+      expected_pattern: "[0-9]{7,}"
+
+    - id: "memory_available"
+      name: "記憶體可用量正常"
+      type: "adb_shell"
+      category: "Storage"
+      command: "cat /proc/meminfo | grep MemAvailable"
+      expected_pattern: "MemAvailable:\\s+[1-9][0-9]+ kB"
+
+    # ============================================================
+    # Power Management
+    # ============================================================
+    - id: "battery_status"
+      name: "電池狀態"
+      type: "adb_shell"
+      category: "Power"
+      command: "dumpsys battery | grep 'status'"
+      expected_pattern: "status: [2-5]"
+
+    - id: "charging_connected"
+      name: "充電連線狀態"
+      type: "adb_shell"
+      category: "Power"
+      command: "dumpsys battery | grep 'powered'"
+      expected_pattern: ".*powered: true"
+
+    - id: "charging_detection"
+      name: "充電偵測測試"
+      type: "charging"
+      category: "Power"
+      action: "detect"
+      params:
+        off_duration: 5
+        settle_time: 5
+      depends_on: "charging_connected"
+      requires:
+        device_capability: "usb_power"
+
+    - id: "thermal_zone"
+      name: "Thermal Driver"
+      type: "adb_shell"
+      category: "Power"
+      command: "ls /sys/class/thermal/thermal_zone*/type | wc -l"
+      expected_pattern: "^[1-9][0-9]*$"
+
+    - id: "suspend_deep_sleep"
+      name: "Suspend/Resume + Deep Sleep"
+      type: "suspend"
+      category: "Power"
+      action: "deep_sleep"
+      params:
+        suspend_duration: 120
+        adb_timeout: 60
+      depends_on: "charging_connected"
+      requires:
+        device_capability: "usb_power"
+
+    # ============================================================
+    # USB
+    # ============================================================
+    - id: "usb_gadget"
+      name: "USB Gadget 模式"
+      type: "adb_shell"
+      category: "USB"
+      command: "getprop sys.usb.config"
+      expected_pattern: "(adb|mtp)"
+
+    # ============================================================
+    # System Stability
+    # ============================================================
+    - id: "no_system_crash"
+      name: "無系統崩潰"
+      type: "adb_shell"
+      category: "System"
+      command: "logcat -b crash -d | grep 'FATAL EXCEPTION' | wc -l"
+      expected_pattern: "^0$"
+
+    # ============================================================
+    # ADB Reboot（放最後，會中斷連線）
+    # ============================================================
+    - id: "adb_reboot"
+      name: "ADB Reboot 驗證"
+      type: "suspend"
+      category: "Boot"
+      action: "reboot"
+      params:
+        boot_timeout: 120

@@ -2,6 +2,7 @@ import sys
 import logging
 import time
 import argparse
+import yaml
 from framework.adb_helper import wait_for_device, get_system_property, run_adb_cmd
 from framework.ui_automator import UIHelper
 from framework.report_generator import HTMLReportGenerator
@@ -102,24 +103,72 @@ def main():
     from framework.adb_helper import keep_screen_on
     keep_screen_on(True)
 
+    # --- Config Driven Preflight & Execution ---
+    # Load Configuration
+    config = {}
     try:
+        with open("config.yaml", "r") as f:
+            config = yaml.safe_load(f)
+        logging.info("Configuration loaded from config.yaml")
+    except Exception as e:
+        logging.warning(f"Failed to load config.yaml ({e}), using default ALL enabled configuration.")
+        config = {"modules": {}}
+
+    try:
+        # Security Preflight Checks
+        logging.info("Running Security Preflight Checks...")
+        
+        is_debuggable = get_system_property("ro.debuggable") == "1"
+        _, selinux_status = run_adb_cmd("getenforce")
+        selinux_status = selinux_status.strip()
+        _, su_check = run_adb_cmd("which su")
+        
+        is_rooted = "not found" not in su_check.lower() and su_check.strip() != ""
+        
+        if is_debuggable or is_rooted or selinux_status.lower() != "enforcing":
+            reporter.add_result("System", "Security Preflight", False, 
+                                f"Insecure Environment! ro.debuggable={is_debuggable}, SELinux={selinux_status}, Rooted={is_rooted}", 
+                                status_override="ERROR")
+            logging.error(f"Security Check Failed: Debuggable={is_debuggable}, SELinux={selinux_status}, Rooted={is_rooted}")
+            logging.error("Aborting tests due to compromised runtime environment (False-Positive Risk).")
+            reporter.finalize(time.time() - start_time)
+            sys.exit(1)
+        else:
+            reporter.add_result("System", "Security Preflight", True, f"Environment OK (SELinux: {selinux_status})")
+            logging.info("Security Preflight Passed.")
+
         # --- Execute Test Modules ---
-        logging.info("Executing test suites...")
+        logging.info("Executing configured test suites...")
+        mods = config.get("modules", {})
+        
+        def should_run(mod_name):
+            return mods.get(mod_name, True)
         
         # Priority: Reboot
-        test_reboot.run_tests(ui, reporter)
+        if should_run("reboot"):
+            test_reboot.run_tests(ui, reporter)
         
         # Phase 1
-        test_display.run_tests(ui, reporter)
-        test_audio.run_tests(ui, reporter)
-        test_camera.run_tests(ui, reporter)
-        test_connectivity.run_tests(ui, reporter)
-        test_sensors_power.run_tests(ui, reporter)
+        if should_run("display"):
+            test_display.run_tests(ui, reporter)
+        if should_run("audio"):
+            test_audio.run_tests(ui, reporter)
+        if should_run("camera"):
+            test_camera.run_tests(ui, reporter)
+        if should_run("connectivity"):
+            # Pass network config if available, otherwise tests will fallback or fail
+            net_config = config.get("network", {})
+            test_connectivity.run_tests(ui, reporter, ssid=net_config.get("wifi_ssid"), password=net_config.get("wifi_pass"))
+        if should_run("sensors_power"):
+            test_sensors_power.run_tests(ui, reporter)
         
         # Phase 2
-        test_sensors_advanced.run_tests(ui, reporter)
-        test_nfc.run_tests(ui, reporter)
-        test_gps.run_tests(ui, reporter)
+        if should_run("sensors_advanced"):
+            test_sensors_advanced.run_tests(ui, reporter)
+        if should_run("nfc"):
+            test_nfc.run_tests(ui, reporter)
+        if should_run("gps"):
+            test_gps.run_tests(ui, reporter)
     finally:
         # Restore screen sleep settings after all tests finish
         logging.info("Tests finished. Restoring screen sleep settings...")
