@@ -15,18 +15,19 @@
 | **Phase 1: 核心框架與基底測試** | 🟢 完結 | **100%** | ADB 連線、螢幕控制、基礎音量控制 | 2026-03-06 |
 | **Phase 2: 進階功能自動化** | 🟢 完結 | **100%** | 相機 Intent、WiFi/BT連網、觸控模擬、NFC、GPS | 2026-03-06 |
 | **Phase 3: 使用者增強功能測試** | 🟢 完結 | **100%** | 藍牙掃描清單、相機 JPG 存檔驗證、手電筒控制 | 2026-03-10 |
-| **Phase 4: 深水區硬體與穩定性** | 🟢 完結 | **100%** | WWAN、麥克風錄音、影片解碼、Setup Wizard Bypass、螢幕喚醒穩定性 | 2026-03-10 |
+| **Phase 4: 深水區硬體與穩定性** | 🟢 完結 | **100%** | WWAN、音訊熵值分析、相機動態快門、OOBE Bypass、電源還原邏輯 | 2026-03-26 |
 | **Phase 5: 企業級派發與 CI/CD** | 🟡 暫停 | **60%** | Email 總結報告發送、失敗日誌 (Logcat) ZIP 打包 | 2026-03-13 |
 | **Feature: 自動化燒錄 (Flash) 模組** | 🟢 完結 | **100%** | 支援 ZIP 自動解壓、Fastboot 流程與燒錄後自動接續 OOBE | 2026-03-12 |
-| **Feature: 多 SKU (GMS/China) 支援** | 🟢 完結 | **100%** | 實作 `--sku` 參數與 China NAL 專用盲打序列與 ADB 授權優化 | 2026-03-13 |
+| **Feature: 多 SKU (GMS/China) 支援** | 🟢 完結 | **100%** | 實作自適應 Branching 序列，支援 SIM/No-SIM 雙場景自動 OOBE Bypass | 2026-03-25 |
 | **Phase 6: 跨電腦部署與相容性** | 🟢 完結 | **100%** | 實作 Portable Python 3.11 部署方案、本地指令自動偵測與 venv 隔離 | 2026-03-18 |
 
 ---
 
 ## 🚀 專案亮點 (Highlights)
 1.  **100% 免接觸 (Zero-Touch) 軟體驗證**：不再需要人員手動滑動螢幕或確認指示燈，全程由腳本替代眼與手。
-2.  **自動化 HTML 報告與發布建議**：一鍵產生清楚的綠/紅 Pass 表單，並基於成敗給出 `Release Recommendation`。
-3.  **Setup Wizard 突破性研究**：詳載了如何在封閉的系統內，透過 AOAv2 HID 協定進行合法軟體控制的破解思路。
+2.  **音訊硬體「生存」驗證**：業界首創免喇叭放音，透過二進位熵值 (Entropy) 分析達成純軟體麥克風存活判定。
+3.  **自動化 HTML 報告與發布建議**：一鍵產生清楚的綠/紅 Pass 表單，並基於成敗給出 `Release Recommendation`。
+4.  **Setup Wizard 突破性研究**：詳載了如何在封閉的系統內，透過 AOAv2 HID 協定進行合法軟體控制的破解思路。
 
 ## 📖 目錄與技術文檔 (Documentation)
 所有的設計細節、技術突破與測試覆蓋範圍，皆詳載於 `docs/` 資料夾下：
@@ -69,7 +70,11 @@
 
 ### 🛠️ CLI 參數說明
 ```bash
-# 情境 A: 全自動 (燒錄 + 繞過 OOBE + 執行測試)
+# 情境 A:- **僅執行測試 (裝置已在 Home Screen)**:
+  ```bash
+  python3 main.py --only-tests
+  ```
+- **完整流程 (Flash + OOBE + Tests)**:
 python3 main.py --flash /path/to/fastboot.zip
 
 # 情境 B: China SKU 全自動 (燒錄 + 中國版 OOBE + 執行測試)

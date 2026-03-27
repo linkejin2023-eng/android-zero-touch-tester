@@ -82,3 +82,13 @@ def toggle_screen(turn_on: bool):
     if (turn_on and not currently_on) or (not turn_on and currently_on):
         run_adb_cmd("input keyevent 26") # KEYCODE_POWER
         time.sleep(1)
+
+def keep_screen_on(enable: bool = True):
+    """Prevents the screen from sleeping while USB is connected."""
+    val = "true" if enable else "false"
+    run_adb_cmd(f"svc power stayon {val}")
+    if enable:
+        # Wake up the device if it's sleeping
+        run_adb_cmd("input keyevent 224") # KEYCODE_WAKEUP
+        run_adb_cmd("wm dismiss-keyguard") # Dismiss simple lockscreens
+    logging.info(f"Screen 'Stay Awake' set to: {enable}")

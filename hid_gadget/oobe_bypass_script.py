@@ -195,19 +195,27 @@ class OOBEBypass:
                 self.press_key(KEY_SPACE)
             time.sleep(0.05)
 
-    def bypass_gms_oobe(self):
-        logging.info("Starting GMS OOBE Bypass sequence for Trimble T70 (Android 15)...")
+    def bypass_gms_oobe(self, has_sim=True):
+        logging.info(f"Executing GMS OOBE Bypass (has_sim={has_sim}) for Trimble T70...")
         
-        # Optimized sequence for GMS stability
+        # Base sequence up to Offline Setup
         sequence = [
-            "TAB", "TAB", "TAB", "ENTER", # Welcome screen
+            "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "ENTER", # Welcome screen (5x DOWN to target Start)
             "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "ENTER", # Wi-Fi Skip
             "TAB", "TAB", "ENTER", # Offline setup confirmation
-            "TAB", "TAB", "TAB", "TAB", "ENTER", # Date & Time page
-            "SYS_BACK", "TAB", "ENTER", # PIN Screen (Back to close keyboard, Tab to Skip button, Enter)
-            "TAB", "TAB", "ENTER", # Skip anyway confirmation dialog
-            "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "ENTER" # Google Services
         ]
+
+        if not has_sim:
+            # Date & Time page only appears WITHOUT SIM
+            sequence.extend(["TAB", "TAB", "TAB", "TAB", "ENTER"])
+
+        # PIN Screen + Confirm dialog
+        sequence.extend([
+            "SYS_BACK", "TAB", "ENTER",      # PIN Screen Skip (BACK to hide keyboard, TAB to focus Skip)
+            "SLEEP_1", "TAB", "TAB", "ENTER", # Skip anyway dialog
+            "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "ENTER" # Google Services
+        ])
+        
         self._execute_sequence(sequence)
 
     def bypass_china_oobe(self):
@@ -235,18 +243,31 @@ class OOBEBypass:
             elif step == "DOWN":
                 self.press_key(KEY_DOWN)
                 time.sleep(0.8)
+            elif step == "RIGHT":
+                self.press_key(KEY_RIGHT)
+                time.sleep(0.8)
+            elif step == "SLEEP_1":
+                time.sleep(1.2)
             elif step == "SYS_BACK":
                 self.press_back()
                 time.sleep(1.0)
         
         logging.info("OOBE Sequence complete.")
 
-def run_oobe_bypass(sku="gms", timeout=300):
-    """Wait for device to appear and then run the OOBE bypass + ADB enable sequence."""
+def run_oobe_bypass(sku="gms", timeout=600):
+    """Wait for device to appear and then run the OOBE bypass + ADB enable sequence with retries."""
     logging.info(f"Waiting for device to appear on USB (timeout={timeout}s, SKU={sku})...")
     start = time.time()
     driver = AOADriver()
     
+    def is_adb_ready():
+        try:
+            import subprocess
+            out = subprocess.check_output(["adb", "devices"]).decode()
+            return "\tdevice" in out
+        except:
+            return False
+
     while time.time() - start < timeout:
         if driver.find_device():
             logging.info("Device detected! Starting AOA handshake...")
@@ -255,24 +276,52 @@ def run_oobe_bypass(sku="gms", timeout=300):
                 driver.register_hid(2, CONSUMER_REPORT_DESC)
                 
                 bypass = OOBEBypass(driver)
-                logging.info(f"Starting OOBE Bypass for SKU: {sku}...")
-                if sku == "china":
-                    bypass.bypass_china_oobe()
-                else:
-                    bypass.bypass_gms_oobe()
                 
-                logging.info("Waiting 5s for system to stabilize...")
-                time.sleep(5)
+                # Branching Strategy for GMS (Try SIM path then No-SIM path)
+                attempts = [True, False] if sku == "gms" else [True]
                 
-                logging.info("Starting ADB Enablement...")
-                bypass.enable_adb_trimble(sku=sku)
-                return True
+                for has_sim in attempts:
+                    logging.info(f"Attempting OOBE Bypass (SKU: {sku}, SIM: {has_sim})...")
+                    # 1. Reset OOBE to start (Multiple Back presses)
+                    logging.info("Resetting OOBE state (10x BACK)...")
+                    for _ in range(10):
+                        bypass.press_back()
+                        time.sleep(0.3)
+                    time.sleep(5)
+                    
+                    # 2. Safety ESC to clear any language lists or popups
+                    logging.info("Sending safety ESC...")
+                    bypass.press_key(KEY_ESC)
+                    time.sleep(1)
+                    
+                    # 3. Run OOBE Sequence
+                    if sku == "china":
+                        bypass.bypass_china_oobe()
+                    else:
+                        bypass.bypass_gms_oobe(has_sim=has_sim)
+                    
+                    logging.info("OOBE Sequence finished. Waiting 5s before enabling ADB...")
+                    time.sleep(5)
+                    
+                    # 3. Try Enable ADB
+                    bypass.enable_adb_trimble(sku=sku)
+                    
+                    # 4. Check Success
+                    if is_adb_ready():
+                        logging.info("MISSION SUCCESS: ADB is authorized and device is ready!")
+                        return True
+                    
+                    logging.warning(f"Bypass attempt (SIM={has_sim}) failed to enable ADB. Retrying alternative...")
+                    time.sleep(2)
+
+                # If both failed in this session, keep polling
+                logging.error("All OOBE paths in this session failed. Polling USB again...")
             else:
                 logging.warning("Handshake failed, retrying...")
         
         time.sleep(5) # Poll USB every 5s
     
-    logging.error("OOBE Bypass failed: Device did not appear or handshake failed.")
+    logging.error("OOBE Bypass failed: Timeout reached.")
     return False
 
 if __name__ == "__main__":

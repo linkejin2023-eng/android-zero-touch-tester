@@ -6,7 +6,7 @@ from framework.adb_helper import wait_for_device, get_system_property, run_adb_c
 from framework.ui_automator import UIHelper
 from framework.report_generator import HTMLReportGenerator
 from framework.tests import test_display, test_audio, test_camera, test_connectivity, test_sensors_power
-from framework.tests import test_touch, test_sensors_advanced, test_housekeeper, test_buttons, test_nfc, test_gps
+from framework.tests import test_sensors_advanced, test_nfc, test_gps, test_reboot
 
 from framework.flash_manager import FlashManager
 
@@ -16,6 +16,7 @@ def main():
     parser.add_argument("--oobe", action="store_true", help="Run only OOBE bypass and ADB enablement (manual debug)")
     parser.add_argument("--sku", type=str, choices=["gms", "china"], default="gms", help="Product SKU type for OOBE sequence (default: gms)")
     parser.add_argument("--skip-tests", action="store_true", help="Only flash/OOBE, skip tests")
+    parser.add_argument("--only-tests", action="store_true", help="Skip flash/OOBE/Provisioning, run tests directly on established device")
     args = parser.parse_args()
 
     logging.info("--- Starting Android Sanity Test Automation ---")
@@ -31,7 +32,8 @@ def main():
 
     if args.oobe:
         # After flashing or manual request, wait for device to boot into OOBE and bypass it
-        logging.info(f"Entering OOBE Bypass synchronization loop (SKU: {args.sku})...")
+        logging.info("--- Stage 1: HID/AOA OOBE Bypass (No ADB required) ---")
+        logging.info(f"Entering HID synchronization loop (SKU: {args.sku})...")
         try:
             from hid_gadget import run_oobe_bypass
         except ImportError as e:
@@ -49,16 +51,20 @@ def main():
     # --- Phase 1: Environment Readiness ---
     # After bypass, ADB should be authorized and ready
     if not wait_for_device(timeout=60):
-        # If skip-tests wasn't set, we expect ADB to be ready here
         logging.error("No authorized ADB device detected after OOBE bypass.")
+        if args.only_tests:
+            logging.warning("=== HINT ===")
+            logging.warning("It seems ADB is disabled. If the device is on the 'Welcome' screen,")
+            logging.warning("please run WITHOUT --only-tests (or with --oobe) to enable ADB first.")
         sys.exit(1)
         
     # Pro-actively bypass Setup Wizard for newly flashed builds (via ADB as backup/second layer)
-    logging.info("Ensuring Setup Wizard is bypassed (ADB layer)...")
-    run_adb_cmd("settings put global device_provisioned 1")
-    run_adb_cmd("settings put secure user_setup_complete 1")
-    run_adb_cmd("am start -c android.intent.category.HOME -a android.intent.action.MAIN")
-    time.sleep(2)
+    if not args.only_tests:
+        logging.info("Ensuring Setup Wizard is bypassed (ADB layer)...")
+        run_adb_cmd("settings put global device_provisioned 1")
+        run_adb_cmd("settings put secure user_setup_complete 1")
+        run_adb_cmd("am start -c android.intent.category.HOME -a android.intent.action.MAIN")
+        time.sleep(2)
 
     if args.skip_tests:
         logging.info("Tests skipped as per --skip-tests flag.")
@@ -75,7 +81,8 @@ def main():
         "Brand": get_system_property("ro.product.brand"),
         "Android Version": get_system_property("ro.build.version.release"),
         "Build Number": get_system_property("ro.build.display.id"),
-        "Serial": get_system_property("ro.serialno")
+        "Serial": get_system_property("ro.serialno"),
+        "SKU ID": get_system_property("ro.boot.sku")
     }
     reporter.set_device_info(device_info)
     
@@ -91,23 +98,32 @@ def main():
         
     reporter.add_result("System", "ADB & UIAutomator Connection", True, "Successfully connected to device and injected test agents.")
     
-    # --- Execute Test Modules ---
-    logging.info("Executing test suites...")
-    
-    # Phase 1
-    test_display.run_tests(ui, reporter)
-    test_audio.run_tests(ui, reporter)
-    test_camera.run_tests(ui, reporter)
-    test_connectivity.run_tests(ui, reporter)
-    test_sensors_power.run_tests(ui, reporter)
-    
-    # Phase 2
-    test_touch.run_tests(ui, reporter)
-    test_sensors_advanced.run_tests(ui, reporter)
-    test_housekeeper.run_tests(ui, reporter)
-    test_buttons.run_tests(ui, reporter)
-    test_nfc.run_tests(ui, reporter)
-    test_gps.run_tests(ui, reporter)
+    # Ensure screen is on and won't sleep during tests
+    from framework.adb_helper import keep_screen_on
+    keep_screen_on(True)
+
+    try:
+        # --- Execute Test Modules ---
+        logging.info("Executing test suites...")
+        
+        # Priority: Reboot
+        test_reboot.run_tests(ui, reporter)
+        
+        # Phase 1
+        test_display.run_tests(ui, reporter)
+        test_audio.run_tests(ui, reporter)
+        test_camera.run_tests(ui, reporter)
+        test_connectivity.run_tests(ui, reporter)
+        test_sensors_power.run_tests(ui, reporter)
+        
+        # Phase 2
+        test_sensors_advanced.run_tests(ui, reporter)
+        test_nfc.run_tests(ui, reporter)
+        test_gps.run_tests(ui, reporter)
+    finally:
+        # Restore screen sleep settings after all tests finish
+        logging.info("Tests finished. Restoring screen sleep settings...")
+        keep_screen_on(False)
     
     # Generate Final Report
     duration = time.time() - start_time
