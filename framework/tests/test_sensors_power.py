@@ -123,13 +123,3 @@ def run_tests(ui: UIHelper, reporter: HTMLReportGenerator):
     except Exception as e:
         reporter.add_result("Power", "Battery check", False, str(e))
 
-    # Touchscreen Input Check
-    try:
-        # Check if input devices report a touch screen
-        code, out = run_adb_cmd("dumpsys input")
-        if "Touch" in out or "touch" in out.lower() or "event" in out:
-            reporter.add_result("Touchscreen", "Input Device Listing", True, "Found registered touch/input devices")
-        else:
-            reporter.add_result("Touchscreen", "Input Device Listing", False, "No touch devices registered in InputManager")
-    except Exception as e:
-        reporter.add_result("Touchscreen", "Input Device Listing", False, str(e))

@@ -20,6 +20,34 @@ def run_tests(ui: UIHelper, reporter: HTMLReportGenerator, ssid=None, password=N
         run_adb_cmd("svc data disable")
         time.sleep(2)
         
+        # Enhanced Routing Check
+        logging.info("Verifying Routing Table (Mutual Exclusivity)...")
+        _, route_out = run_adb_cmd("ip route")
+        _, ifconfig_out = run_adb_cmd("ifconfig")
+        
+        # Check if any rmnet (cellular) interface has an IP
+        has_wwan_ip = False
+        import re
+        wwan_interfaces = re.findall(r'(rmnet\d+|ccmni\d+)', ifconfig_out)
+        for iface in wwan_interfaces:
+            # Check the block for this interface in ifconfig
+            iface_block = ifconfig_out.split(iface)[1].split('\n\n')[0] if iface in ifconfig_out else ""
+            if "inet addr:" in iface_block:
+                has_wwan_ip = True
+                break
+        
+        # Check default gateway
+        default_route_wlan = "default via" in route_out and "dev wlan0" in route_out
+        has_other_default = "default via" in route_out and "dev wlan0" not in route_out
+        
+        if not has_wwan_ip and not has_other_default:
+            reporter.add_result("Connectivity", "Mutual Exclusivity", True, "Verified: No active WWAN routes, clean routing table.")
+        else:
+            msg = "Warning: Parallel routes detected."
+            if has_wwan_ip: msg += " WWAN IP still active."
+            if has_other_default: msg += " Non-WiFi default gateway found."
+            reporter.add_result("Connectivity", "Mutual Exclusivity", False, msg)
+
         # Enable WiFi via cmd wifi
         run_adb_cmd("svc wifi enable")
         time.sleep(3)

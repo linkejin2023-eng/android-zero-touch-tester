@@ -136,9 +136,10 @@ class OOBEBypass:
                 elif cmd == "SYS_BACK": 
                     self.press_back()
                     time.sleep(1.0) # Delay for back navigation transition
-                elif cmd == "SYS_HOME": self.press_home()
+                elif cmd == "SYS_HOME": 
+                    self.press_home()
                 
-                logging.info(f"Executed: {cmd}")
+                logging.info(f"HID Event Sent: {cmd}")
             except Exception as e:
                 # If we lose connection here (e.g. PID changed), we exit loop and handle reconnection
                 if "No such device" in str(e) or "Pipe error" in str(e):
@@ -228,31 +229,96 @@ class OOBEBypass:
         ]
         self._execute_sequence(sequence)
 
+    def reset_device_to_factory_settings(self):
+        """Executes the recorded HID sequence to perform a Factory Reset."""
+        logging.info("Starting Factory Reset sequence via HID (including Wake-up logic)...")
+        
+        # 1. Aggressive Wake up & Keyguard Dismiss
+        try:
+            import subprocess
+            # Try ADB wakeup first
+            logging.info("Attempting to wake up device and dismiss keyguard via ADB...")
+            subprocess.run(["adb", "shell", "input", "keyevent", "KEYCODE_WAKEUP"], capture_output=True)
+            subprocess.run(["adb", "shell", "wm", "dismiss-keyguard"], capture_output=True)
+            time.sleep(1)
+        except:
+            pass
+
+        # 2. HID Fallback Wake up (Send ESC and SPACE to wake screen + dismiss swipe lock)
+        logging.info("Sending HID Wake-up/Unlock signals (ESC, SPACE, HOME)...")
+        self.press_key(KEY_ESC)
+        time.sleep(0.5)
+        self.press_key(KEY_SPACE)
+        time.sleep(0.5)
+        self.press_home() 
+        time.sleep(1.5)
+        
+        # 3. Pre-cleanup Settings
+        try:
+            import subprocess
+            logging.info("Ensuring Settings app is in a fresh state...")
+            subprocess.run(["adb", "shell", "am", "force-stop", "com.android.settings"], capture_output=True)
+            subprocess.run(["adb", "shell", "am", "start", "-a", "android.settings.SETTINGS"], capture_output=True)
+            time.sleep(2.5)
+        except:
+            pass
+
+        # 2. Recorded Sequence
+        # If 'am start' worked, we are in Settings. 
+        # If it didn't, 'SETTINGS' (Win+I) is our fallback.
+        sequence = ["SETTINGS", "TAB", "SLEEP_1"] # TAB for focus + delay
+        sequence.extend(["DOWN"] * 27)
+        sequence.extend(["UP", "ENTER"])
+        sequence.extend(["DOWN"] * 17)
+        sequence.extend(["ENTER"])
+        sequence.extend(["DOWN"] * 13)
+        sequence.extend(["ENTER"])
+        sequence.extend(["TAB", "TAB", "TAB", "ENTER", "TAB", "ENTER"])
+        
+        self._execute_sequence(sequence)
+        logging.info("Factory Reset HID sequence execution finished of course.")
+
     def _execute_sequence(self, sequence):
-        # 1. Home / Reset to ensure starting from scratch
-        self.press_key(KEY_NONE, MOD_LMETA) 
-        time.sleep(2)
+        # 1. Reset/Start from scratch (Optional: Only if Home isn't already handled)
+        # self.press_key(KEY_NONE, MOD_LMETA) 
+        # time.sleep(2)
 
         for step in sequence:
+            logging.info(f"HID Event -> Sending: {step}")
             if step == "TAB":
                 self.press_key(KEY_TAB)
-                time.sleep(0.8)
+                time.sleep(0.6)
             elif step == "ENTER":
                 self.press_key(KEY_ENTER)
-                time.sleep(2.5)
+                time.sleep(2.0)
             elif step == "DOWN":
                 self.press_key(KEY_DOWN)
-                time.sleep(0.8)
+                time.sleep(0.4)
+            elif step == "UP":
+                self.press_key(KEY_UP)
+                time.sleep(0.4)
+            elif step == "LEFT":
+                self.press_key(KEY_LEFT)
+                time.sleep(0.4)
             elif step == "RIGHT":
                 self.press_key(KEY_RIGHT)
-                time.sleep(0.8)
+                time.sleep(0.4)
+            elif step == "SETTINGS":
+                self.press_key(KEY_I, MOD_LMETA)
+                time.sleep(2)
             elif step == "SLEEP_1":
-                time.sleep(1.2)
+                time.sleep(1.0)
             elif step == "SYS_BACK":
                 self.press_back()
                 time.sleep(1.0)
+            elif step == "SYS_HOME":
+                self.press_home()
+                time.sleep(1.0)
+            elif step == "ESC":
+                self.press_key(KEY_ESC)
+                time.sleep(0.5)
         
-        logging.info("OOBE Sequence complete.")
+        logging.info("OOBE/Sequence complete.")
 
 def run_oobe_bypass(sku="gms", timeout=600):
     """Wait for device to appear and then run the OOBE bypass + ADB enable sequence with retries."""

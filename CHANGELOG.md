@@ -2,6 +2,23 @@
 
 所有關於本專案的顯著變更將會記錄於此檔案中。
  
+## [2026-04-01] - 資料驅動驗證架構 (Data-Driven Verification)
+### Added (新增)
+- **通用設定檔驅動 (`build_info.json`)**：徹底移除 Python 代碼中寫死的 `getprop` 與 UI 驗證邏輯，改由 JSON 動態載入 `validations` 陣列，實現「免寫 Code 即可新增測項」的終極目標。
+- **混合型萃取引擎 (Hybrid Extractors)**：
+ - `shell`：負責快速屬性抓取 (e.g. `ro.build.version.release`)
+ - `logcat`：負責攔截特定系統日誌 (e.g. 觸控 IC 韌體)
+ - `ui`：負責深度選單導航、自適應點擊與防呆滾動 (e.g. 實體鍵盤韌體)
+- **多重比對模式**：支援 `exact` 與 `contains` 比對模式，完美適應具有 Timestamp 尾綴的韌體版本（如 WWAN 模組）。
+
+### Changed (變更)
+- **UI 提取強化與防呆**：
+ - 在所有 `ui` 驗證前，加入更強韌的 `wm dismiss-keyguard` 結合實體 `Swipe` 解鎖，確保裝置脫離休眠態。
+ - 引入多層級錯誤捕捉 (Exception Handling)，UIAutomator 找不到元素時不再崩潰，而是優雅回報 `Not found` 並自動擷取 XML Dump 到隨身碟供除錯。
+
+### Removed (移除)
+- **硬編碼測試指令**：移除了 `firmware_expectations.yaml` 與 `test_firmware.py` 內舊有僵化的 if-else 邏輯陣列。
+ 
 ## [2026-03-27] - 視力介面翻新與核心基座完結 (Infrastructure & Optimization)
 ### Added (新增)
 - **UI 報表全面儀表板化 (Visual Dashboard Refresh)**：徹底改寫 `framework/report_generator.py`，導入 Donut Chart、子系統進度條與 SKIP/ERROR 狀態追蹤，無需外部 JS 依賴。
@@ -47,7 +64,7 @@
 
 ### Removed (移除)
 - **非確定性與無法物理驗證測項移除**：刪除了「觸控 (Touch)」、「音量鍵 (Buttons)」、「強迫關機 (Force Shutdown)」、「螢幕亮度」、「開關螢幕」、「LED 燈」與「手電筒」。
-    - **理由**：這些項目在全自動環境下缺乏「軟體層面」的閉環驗證，若無外部攝影機觀測，無法 100% 斷定物理狀態（如螢幕是否真的變暗），改為手工物理測試以確保自動化報表的權威性。
+ - **理由**：這些項目在全自動環境下缺乏「軟體層面」的閉環驗證，若無外部攝影機觀測，無法 100% 斷定物理狀態（如螢幕是否真的變暗），改為手工物理測試以確保自動化報表的權威性。
 
 ## [2026-03-18] - 受限環境部署驗證與指令偵測優化
 ### Fixed (修正)
@@ -61,12 +78,12 @@
 ## [2026-03-13] - 架構優化、多 SKU 支援與受限環境部署規劃
 ### Added (新增)
 - **多 SKU 支援正式實作**：
-    - 引進 `--sku <gms|china>` 參數，動態切換 AOA HID 盲打序列。
-    - 實作 China SKU (NAL) 專用 OOBE 跳過邏輯與 ADB 授權路徑調校。
+ - 引進 `--sku <gms|china>` 參數，動態切換 AOA HID 盲打序列。
+ - 實作 China SKU (NAL) 專用 OOBE 跳過邏輯與 ADB 授權路徑調校。
 - **受限環境部署規劃 (進行中)**：
-    - 生成 `requirements.txt` 與環境診斷工具 `check_env.py`。
-    - 撰寫 `deployment_plan.md` 與安全性評估報告。
-    - **Legacy Compatibility**：規劃將核心代碼回溯至 Python 3.6+ 相容語法以適應特定受限環境。
+ - 生成 `requirements.txt` 與環境診斷工具 `check_env.py`。
+ - 撰寫 `deployment_plan.md` 與安全性評估報告。
+ - **Legacy Compatibility**：規劃將核心代碼回溯至 Python 3.6+ 相容語法以適應特定受限環境。
 
 ### Changed (變更)
 - **旗標邏輯修正**：優化 `--skip-tests` 邏輯，解決手動除錯模式下的 ADB 超時報錯。

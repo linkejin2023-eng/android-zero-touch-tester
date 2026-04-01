@@ -9,11 +9,12 @@ from framework.adb_helper import wait_for_device
 class FlashManager:
     """Manages the flashing process for Android devices."""
 
-    def __init__(self, zip_path: str):
+    def __init__(self, zip_path: str, no_wipe: bool = False):
         self.zip_path = os.path.abspath(zip_path)
         self.extract_dir = os.path.dirname(self.zip_path)
         self.fastboot_bin = "fastboot" # Default to system PATH
-        logging.info(f"FlashManager initialized with ZIP: {self.zip_path}")
+        self.no_wipe = no_wipe
+        logging.info(f"FlashManager initialized with ZIP: {self.zip_path} (No-Wipe: {self.no_wipe})")
 
     def extract_firmware(self) -> bool:
         """Extracts the firmware ZIP to its current directory."""
@@ -144,13 +145,28 @@ class FlashManager:
         try:
             with open(bash_script, 'r') as f:
                 content = f.read()
+            
+            modified = False
+            # 1. Strip sudo
             if 'sudo ' in content:
                 logging.info(f"Stripping 'sudo' from {os.path.basename(bash_script)} to prevent interactive hangs.")
-                new_content = content.replace('sudo ', '') # Remove sudo from commands
+                content = content.replace('sudo ', '') 
+                modified = True
+                
+            # 2. Skip UserData Wipe (if requested)
+            if self.no_wipe:
+                if 'erase userdata' in content or '-w' in content:
+                    logging.info("Applying --no-wipe: Stripping userdata erase/wipe commands from flash script.")
+                    content = content.replace('fastboot erase userdata', '# fastboot erase userdata')
+                    content = content.replace('fastboot -w', '# fastboot -w')
+                    modified = True
+            
+            if modified:
                 with open(bash_script, 'w') as f:
-                    f.write(new_content)
+                    f.write(content)
+                    
         except Exception as e:
-            logging.warning(f"Could not strip sudo from script: {e}")
+            logging.warning(f"Could not patch flash script: {e}")
 
         # START FLASHING
         logging.info("Starting flashing... (Note: Running without sudo, ensuring udev rules are set)")

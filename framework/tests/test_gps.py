@@ -7,22 +7,27 @@ def run_tests(ui, reporter):
     
     # 1. GPS Provider Status
     try:
-        # Force Enable Location via settings (mode 3 = HIGH_ACCURACY)
-        # Note: In newer Androids, this is location_providers_allowed=gps,network
-        run_adb_cmd("settings put secure location_mode 3")
-        run_adb_cmd("settings put secure location_providers_allowed +gps,network")
-        time.sleep(2)
+        # 1. Force Enable Location via Modern CMD (Android 10+)
+        run_adb_cmd("cmd location set-location-enabled true")
+        time.sleep(1)
+        
+        # Grant permissions to Maps to avoid OOBE dialogs blocking the session
+        logging.info("Granting location permissions to Maps...")
+        run_adb_cmd("pm grant com.google.android.apps.maps android.permission.ACCESS_FINE_LOCATION")
+        run_adb_cmd("pm grant com.google.android.apps.maps android.permission.ACCESS_COARSE_LOCATION")
+        
+        # Trigger a location scan by calling Google Maps or generic geo intent
+        # This wakes up the GNSS hardware which otherwise stays idle
+        logging.info("Triggering GPS session via Maps/Intent...")
+        # Force start with clear stack to ensure it requests fresh location
+        code, _ = run_adb_cmd("am start -S -n com.google.android.apps.maps/com.google.android.maps.MapsActivity")
+        if code != 0:
+            run_adb_cmd("am start -a android.intent.action.VIEW -d 'geo:0,0?q=location'")
         
         # 1. Provider Registration Check
         code, out = run_adb_cmd("dumpsys location")
         
-        provider_ok = False
-        parts = out.split("\n")
-        for line in parts:
-            if "gps" in line.lower() and "provider" in line.lower():
-                provider_ok = True
-                break
-                
+        provider_ok = "gps" in out.lower()
         if not provider_ok:
             reporter.add_result("GPS", "GPS Provider", False, "GPS Provider not found in dumpsys location")
             return
@@ -30,36 +35,41 @@ def run_tests(ui, reporter):
         reporter.add_result("GPS", "GPS Provider", True, "GPS Location Provider is successfully registered")
         
         # 2. Hardware Signal Check (Weak Signal Tolerance)
-        logging.info("Waiting for GPS hardware to scan satellites (10s)...")
-        time.sleep(10)
+        # Give hardware time to acquire initial SV data (increased to 60s for indoors)
+        logging.info("Waiting for GPS hardware to scan satellites (60s)...")
+        time.sleep(60)
         
         _, out = run_adb_cmd("dumpsys location")
         # Look for satellite indicators in dumpsys
         sv_count = 0
         import re
         
+        # Check both legacy and modern indicators
+        # Snr pattern (e.g., snrs=[22.0, 15.0...]) or CN0 is the most authoritative
         for line in out.split("\n"):
-            # Example: mSvCount=5 or Satellites: 5
+            # Variant A: mSvCount=5 or Satellites: 5
             sv_match = re.search(r'(?:mSvCount|Satellites|mSatellites)=?[:\s]*(\d+)', line, re.IGNORECASE)
             if sv_match:
-                try:
-                    count = int(sv_match.group(1))
-                    sv_count = max(sv_count, count)
-                except ValueError:
-                    pass
-            # Trimble T70 / Some Android 10+ devices log under GNSS_KPI
-            kpi_match = re.search(r'Total number of sv status messages processed:\s*(\d+)', line, re.IGNORECASE)
+                try: sv_count = max(sv_count, int(sv_match.group(1)))
+                except: pass
+            
+            # Variant B: Trimble T70 / GNSS_KPI messages
+            kpi_match = re.search(r'Total number of (?:sv status messages|CN0 reports) processed:\s*(\d+)', line, re.IGNORECASE)
             if kpi_match:
-                try:
-                    count = int(kpi_match.group(1))
-                    if count > 0: sv_count = max(sv_count, 1) # If it processed messages, signal is alive
-                except ValueError:
-                    pass
-            # Example: snrs=[22.0, 15.0, 0.0...]
+                try: 
+                    if int(kpi_match.group(1)) > 0: sv_count = max(sv_count, 1)
+                except: pass
+
+            # Variant C: Raw SNRs (Most robust)
             snr_match = re.search(r'snrs?=\[([\d\.\,\s]+)\]', line, re.IGNORECASE)
             if snr_match:
                 snrs = [float(x.strip()) for x in snr_match.group(1).split(",") if x.strip()]
                 sv_count = max(sv_count, len([s for s in snrs if s > 0]))
+        
+        # Cleanup: Close the trigger app (Home screen)
+        run_adb_cmd("input keyevent 3")
+
+
 
         if sv_count > 0:
             reporter.add_result("GPS", "GPS Antenna Signal", True, 

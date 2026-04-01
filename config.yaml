@@ -2,14 +2,16 @@
 
 modules:
   reboot: false
-  audio: false
+  audio: true
   camera: true
   connectivity: true
-  sensors_power: false
+  sensors_power: true
   sensors_advanced: true
   nfc: true
   gps: true
-  
+  firmware: true
+  auto_factory_reset: false
+
 network:
   wifi_ssid: "Xiaomi_test"
   wifi_pass: "0987654321"

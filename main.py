@@ -7,7 +7,7 @@ from framework.adb_helper import wait_for_device, get_system_property, run_adb_c
 from framework.ui_automator import UIHelper
 from framework.report_generator import HTMLReportGenerator
 from framework.tests import test_audio, test_camera, test_connectivity, test_sensors_power
-from framework.tests import test_sensors_advanced, test_nfc, test_gps, test_reboot
+from framework.tests import test_sensors_advanced, test_nfc, test_gps, test_reboot, test_lifecycle, test_firmware
 
 from framework.flash_manager import FlashManager
 
@@ -18,14 +18,33 @@ def main():
     parser.add_argument("--sku", type=str, choices=["gms", "china"], default="gms", help="Product SKU type for OOBE sequence (default: gms)")
     parser.add_argument("--skip-tests", action="store_true", help="Only flash/OOBE, skip tests")
     parser.add_argument("--only-tests", action="store_true", help="Skip flash/OOBE/Provisioning, run tests directly on established device")
+    parser.add_argument("--no-wipe", action="store_true", help="Skip userdata wipe during flashing (simulated OTA)")
+    parser.add_argument("--factory-reset", action="store_true", help="Trigger Factory Reset via HID sequence (Expert only)")
     args = parser.parse_args()
+
+    # --- Phase -1: Emergency Factory Reset (Expert only) ---
+    if args.factory_reset:
+        logging.info("--- SHUTDOWN SEQUENCE: FACTORY RESET REQUESTED ---")
+        logging.warning("This will wipe the device and ADB authorization will be lost.")
+        from hid_gadget import oobe_bypass_script, aoa_driver
+        driver = aoa_driver.AOADriver()
+        if driver.find_device():
+            if driver.switch_to_accessory_mode():
+                driver.register_hid(1, aoa_driver.KB_REPORT_DESC)
+                driver.register_hid(2, aoa_driver.CONSUMER_REPORT_DESC)
+                bypass = oobe_bypass_script.OOBEBypass(driver)
+                bypass.reset_device_to_factory_settings()
+                logging.info("Factory Reset sequence sent. Device will reboot soon.")
+                return
+        logging.error("Failed to find HID device for factory reset.")
+        sys.exit(1)
 
     logging.info("--- Starting Android Sanity Test Automation ---")
 
     # --- Phase 0: Flashing ---
     if args.flash:
-        logging.info(f"Flash requested with: {args.flash}")
-        fm = FlashManager(args.flash)
+        logging.info(f"Flash requested with: {args.flash} (No-Wipe: {args.no_wipe})")
+        fm = FlashManager(args.flash, no_wipe=args.no_wipe)
         if not fm.flash():
             logging.error("Flashing failed. Aborting.")
             sys.exit(1)
@@ -77,13 +96,24 @@ def main():
     reporter = HTMLReportGenerator()
     
     # Collect Device Info
+    sku_raw = get_system_property("ro.boot.sku")
+    sku_map = {
+        "0x1112": "EVT",
+        "0x1113": "DVT1",
+        "0x1114": "DVT2",
+        "0x1115": "DVT3",
+        "0x1116": "PVT",
+        "0x1117": "MP"
+    }
+    sku_label = sku_map.get(sku_raw, sku_raw)
+    
     device_info = {
         "Model": get_system_property("ro.product.model"),
         "Brand": get_system_property("ro.product.brand"),
         "Android Version": get_system_property("ro.build.version.release"),
         "Build Number": get_system_property("ro.build.display.id"),
         "Serial": get_system_property("ro.serialno"),
-        "SKU ID": get_system_property("ro.boot.sku")
+        "SKU ID": f"{sku_raw} ({sku_label})" if sku_label != sku_raw else sku_raw
     }
     reporter.set_device_info(device_info)
     
@@ -141,12 +171,29 @@ def main():
         logging.info("Executing configured test suites...")
         mods = config.get("modules", {})
         
+        # Initialize metrics in case lifecycle is skipped or reset fails
+        baseline_uptime, baseline_files = 0.0, 0
+        final_uptime, final_files = 0.0, 0
+        
         def should_run(mod_name):
             return mods.get(mod_name, True)
         
-        # Priority: Reboot
+        # Priority: Reboot & Firmware
         if should_run("reboot"):
             test_reboot.run_tests(ui, reporter)
+        
+        # Load Firmware/System Expectations if available
+        fw_validations = []
+        try:
+            import json
+            with open("build_info.json", 'r') as f:
+                fw_data = json.load(f)
+                fw_validations = fw_data.get("validations", [])
+        except Exception as e:
+            logging.warning(f"Could not load build_info.json: {e}")
+
+        if should_run("firmware"):
+            test_firmware.run_tests(ui, reporter, validations=fw_validations)
         
         # Phase 1
         if should_run("audio"):
@@ -167,12 +214,61 @@ def main():
             test_nfc.run_tests(ui, reporter)
         if should_run("gps"):
             test_gps.run_tests(ui, reporter)
+        # --- Final Metric Collection (Pre-Reset) ---
+        if config.get('modules', {}).get('auto_factory_reset', False):
+            baseline_uptime, baseline_files = test_lifecycle.get_metrics()
+            logging.info(f"Baseline captured: {baseline_files} files, {baseline_uptime:.2f}h uptime")
     finally:
         # Restore screen sleep settings after all tests finish
         logging.info("Tests finished. Restoring screen sleep settings...")
         keep_screen_on(False)
     
     # Generate Final Report
+
+    # --- Phase 99: Final Lifecycle (Auto-Reset & Verify) ---
+    if config.get('modules', {}).get('auto_factory_reset', False):
+        logging.info("--- FULL CYCLE: Starting Automated Factory Reset & Verification ---")
+        from hid_gadget import oobe_bypass_script, aoa_driver, run_oobe_bypass
+        driver = aoa_driver.AOADriver()
+        if driver.find_device():
+            if driver.switch_to_accessory_mode():
+                driver.register_hid(1, aoa_driver.KB_REPORT_DESC)
+                driver.register_hid(2, aoa_driver.CONSUMER_REPORT_DESC)
+                bypass = oobe_bypass_script.OOBEBypass(driver)
+                bypass.reset_device_to_factory_settings()
+                
+                logging.info("Reset triggered. Waiting 60s for device to reach OOBE...")
+                time.sleep(60)
+                
+                logging.info("Attempting OOBE Bypass & ADB Enablement after reset...")
+                if run_oobe_bypass(sku=args.sku, timeout=600):
+                    logging.info("Bypass successful. Waiting for ADB...")
+                    if wait_for_device(timeout=60):
+                        # Re-provision/Setup Wizard bypass for sanity
+                        run_adb_cmd("settings put global device_provisioned 1")
+                        run_adb_cmd("settings put secure user_setup_complete 1")
+                        run_adb_cmd("am start -c android.intent.category.HOME -a android.intent.action.MAIN")
+                        time.sleep(5)
+                        
+                        logging.info("Running Final Post-Reset Audit...")
+                        # Re-init UI helper as the agent was wiped
+                        ui = UIHelper()
+                        final_uptime, final_files = test_lifecycle.get_metrics()
+                        
+                        summary_msg = (f"Full-cycle reset verified. "
+                                       f"Uptime: {baseline_uptime:.2f}h -> {final_uptime:.2f}h, "
+                                       f"Files: {baseline_files} -> {final_files}")
+                        
+                        is_success = (final_files == 0)
+                        reporter.add_result("System", "Factory Reset Lifecycle", is_success, summary_msg)
+                    else:
+                        reporter.add_result("System", "Factory Reset Lifecycle", False, "Timeout waiting for ADB after reset.")
+                else:
+                    reporter.add_result("System", "Factory Reset Lifecycle", False, "OOBE Bypass failed after reset.")
+        else:
+            logging.error("Failed to find HID device for auto-reset.")
+
+    # --- Final Report Generation (After all lifecycle phases) ---
     duration = time.time() - start_time
     report_path = reporter.finalize(duration)
     

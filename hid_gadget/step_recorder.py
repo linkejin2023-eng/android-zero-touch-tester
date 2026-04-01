@@ -20,7 +20,7 @@ def getch():
 def recorder():
     logging.basicConfig(level=logging.INFO)
     driver = AOADriver()
-    if not driver.find_device(vid=0x099E, pid=0x02B1):
+    if not driver.find_device(): # Default is to prioritize Trimble PIDs
         return
     
     if not driver.switch_to_accessory_mode():
