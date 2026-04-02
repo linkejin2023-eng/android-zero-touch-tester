@@ -7,12 +7,18 @@ import logging
 WIFI_SSID = "Xiaomi_test"
 WIFI_PASS = "0987654321"
 
-def run_tests(ui: UIHelper, reporter: HTMLReportGenerator, ssid=None, password=None):
+def run_tests(ui: UIHelper, reporter: HTMLReportGenerator, ssid=None, password=None, specs=None, selectors=None):
     logging.info("Running Connectivity Tests (WiFi/BT)...")
+    
+    if not specs: specs = {}
+    if not selectors: selectors = {}
     
     target_ssid = ssid if ssid else WIFI_SSID
     target_pass = password if password else WIFI_PASS
     
+    hw_wwan_ifaces = specs.get("wwan_interfaces", ["rmnet", "ccmni", "pdp", "wwan"])
+    wwan_pattern = "|".join([f"{i}\\d*" for i in hw_wwan_ifaces])
+
     # WiFi Tests
     try:
         # Enforce mutual exclusivity
@@ -28,7 +34,7 @@ def run_tests(ui: UIHelper, reporter: HTMLReportGenerator, ssid=None, password=N
         # Check if any rmnet (cellular) interface has an IP
         has_wwan_ip = False
         import re
-        wwan_interfaces = re.findall(r'(rmnet\d+|ccmni\d+)', ifconfig_out)
+        wwan_interfaces = re.findall(rf'({wwan_pattern})', ifconfig_out)
         for iface in wwan_interfaces:
             # Check the block for this interface in ifconfig
             iface_block = ifconfig_out.split(iface)[1].split('\n\n')[0] if iface in ifconfig_out else ""
@@ -93,20 +99,29 @@ def run_tests(ui: UIHelper, reporter: HTMLReportGenerator, ssid=None, password=N
             
             ip = None
             last_status = "Unknown"
-            for i in range(30):
+            # Robust Loop: Handling slow DHCP on distant APs
+            for i in range(90):
                 time.sleep(1)
-                # Use cmd wifi status for modern state reporting
+                # Use cmd wifi status for detailed reporting
                 _, status_out = run_adb_cmd("cmd wifi status")
                 last_status = status_out.strip()
                 
-                # Check IP address
-                _, out_ip = run_adb_cmd("ifconfig wlan0")
-                if "inet addr:" in out_ip:
-                    ip = out_ip.split("inet addr:")[1].split()[0]
+                # Modern IP detection via ip addr (supports all Android versions)
+                import re
+                _, out_ip = run_adb_cmd("ip -f inet addr show wlan0")
+                match = re.search(r'inet\s+(\d+\.\d+\.\d+\.\d+)', out_ip)
+                if match:
+                    ip = match.group(1)
                     break
                 
-                if i % 5 == 0:
-                    logging.info(f"Waiting for IP ({i}/30s)... Status: {last_status}")
+                # Signal Diagnostics: Log every 3 seconds to analyze distanced router issues
+                if i % 3 == 0:
+                    rssi_m = re.search(r'RSSI:\s+(-?\d+)', last_status)
+                    speed_m = re.search(r'Link speed:\s+(\d+Mbps)', last_status)
+                    rssi = rssi_m.group(1) if rssi_m else "N/A"
+                    speed = speed_m.group(1) if speed_m else "N/A"
+                    
+                    logging.info(f"Waiting for IP ({i}/90s)... Signal: {rssi}dBm | Speed: {speed} | Status: {last_status[:40]}...")
 
             if ip:
                 reporter.add_result("Connectivity", "WiFi Association", True, f"Connected to {target_ssid} (IP: {ip})")
@@ -220,14 +235,14 @@ def run_tests(ui: UIHelper, reporter: HTMLReportGenerator, ssid=None, password=N
         
         # High-precision wait for route activation
         mobile_ready = False
-        target_ifaces = ["wwan0", "rmnet", "ccmni", "pdp"]
+        target_ifaces = hw_wwan_ifaces
         active_iface = None
         ip = None
         
         for i in range(30): # Max 30s
             time.sleep(1)
             # 1. Check which interface has an IP
-            _, out_ip = run_adb_cmd("ip -f inet addr show | grep -E 'wwan|rmnet|ccmni|pdp'")
+            _, out_ip = run_adb_cmd(f"ip -f inet addr show | grep -E '{'|'.join(target_ifaces)}'")
             if "inet " in out_ip:
                 ip = out_ip.split("inet ")[1].split("/")[0]
                 for iface in target_ifaces:

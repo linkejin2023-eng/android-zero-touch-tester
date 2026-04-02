@@ -22,8 +22,9 @@
 | **[T70] Phase 1: 核心架構與守門員規則** | 完結 | **100%** | Security Check、Config 控制、Baseline 核驗 | 2026-03-27 |
 | **[T70] Phase 2: 演算法與穩定度優化** | 完結 | **100%** | Sensor 熵值分析、GPS 弱訊號、視力報表翻新 | 2026-03-27 |
 | **[T70] Phase 2.1: 硬體強韌化** | 完結 | **100%** | 三段式硬體快門、自動解鎖 (Lock Screen Bypass) | 2026-03-27 |
-| **[T70] Phase 3: 資料生命週期與收尾** | 進行中 | **20%** | SKU Mapping、Legacy 清除、UserData 擦除 | 2026-03-27 |
-| **[T70] Phase 4: 資料驅動全自動驗證 (Data-Driven)** | 完結 | **100%** | JSON 屬性自適應、混合提取引擎 (shell/logcat/ui)、免寫 Code 新增韌體測項 | 2026-04-01 |
+| **[T70] Phase 3: 資料生命週期與收尾** | 完結 | **100%** | SKU Mapping、Legacy 清除、UserData 擦除 | 2026-04-02 |
+| **[T70] Phase 4: 資料驅動全自動驗證 (Data-Driven)** | 完結 | **100%** | JSON 屬性自適應、混合提取引擎 (shell/logcat/ui)、免寫 Code 新增韌體測項 | 2026-04-02 |
+| **[T70] Phase 5: 架構解耦與連線強韌化** | 完結 | **100%** | 執行 configs/ 目錄分離、WiFi/NFC/WWAN 強韌化、螢幕狀態自動還原 | 2026-04-02 |
 
 ---
 

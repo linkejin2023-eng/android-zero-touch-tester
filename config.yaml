@@ -1,7 +1,7 @@
 # Sanity Automation Framework Configuration
 
 modules:
-  reboot: false
+  reboot: true
   audio: true
   camera: true
   connectivity: true
@@ -10,7 +10,7 @@ modules:
   nfc: true
   gps: true
   firmware: true
-  auto_factory_reset: false
+  auto_factory_reset: true
 
 network:
   wifi_ssid: "Xiaomi_test"

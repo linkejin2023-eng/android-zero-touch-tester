@@ -1,0 +1,36 @@
+{
+  "ui_selectors": {
+    "common": {
+      "allow_texts": [
+        "Allow",
+        "Allow all",
+        "WHILE USING THE APP",
+        "給予",
+        "使用時允許",
+        "僅在主用時允許",
+        "允許"
+      ],
+      "confirm_texts": [
+        "OK",
+        "Next",
+        "AGREE",
+        "Got it",
+        "Continue",
+        "Confirm",
+        "CONFIRM",
+        "我知道了",
+        "下一步",
+        "繼續",
+        "確定",
+        "同意"
+      ]
+    },
+    "recorder": {
+      "shutter_id": "com.android.soundrecorder:id/recordButton",
+      "stop_id": "com.android.soundrecorder:id/stopButton"
+    },
+    "camera": {
+      "shutter_id": "org.codeaurora.snapcam:id/shutter_button"
+    }
+  }
+}

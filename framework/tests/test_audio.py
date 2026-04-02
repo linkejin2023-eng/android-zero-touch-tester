@@ -4,8 +4,19 @@ from framework.report_generator import HTMLReportGenerator
 import time
 import logging
 
-def run_tests(ui: UIHelper, reporter: HTMLReportGenerator):
+def run_tests(ui: UIHelper, reporter: HTMLReportGenerator, specs=None, selectors=None):
     logging.info("Running Audio Tests...")
+    
+    # Defaults for specs/selectors if not provided
+    if not specs: specs = {}
+    if not selectors: selectors = {}
+    
+    audio_stream = specs.get("audio_stream", 3)
+    entropy_threshold = specs.get("audio_entropy_threshold", 50)
+    record_dirs = specs.get("audio_record_dirs", ["/sdcard/Music", "/sdcard/Recordings", "/sdcard/Download"])
+    
+    ui_common = selectors.get("common", {})
+    recorder_specs = selectors.get("recorder", {})
     
     # 1. Check Audio Service
     if check_service_running("audio"):
@@ -16,11 +27,11 @@ def run_tests(ui: UIHelper, reporter: HTMLReportGenerator):
     # 2. Adjust Volume via ADB
     try:
         # Stream 3 is usually STREAM_MUSIC
-        run_adb_cmd("media volume --stream 3 --set 5")
+        run_adb_cmd(f"media volume --stream {audio_stream} --set 5")
         time.sleep(1)
         
         # Check volume using dumpsys audio instead of media since some ROMs strip media get output
-        code, out = run_adb_cmd('dumpsys audio | grep -i "\- STREAM_MUSIC" -A 5')
+        code, out = run_adb_cmd(f'dumpsys audio | grep -i "\\- STREAM_MUSIC" -A 5')
         
         if "5" in out and code == 0:
             reporter.add_result("Audio", "Media Volume Control", True, "Successfully set and read media volume via dumpsys")
@@ -46,9 +57,8 @@ def run_tests(ui: UIHelper, reporter: HTMLReportGenerator):
         keep_screen_on(True) # Ensure awake immediately before audio test
         
         logging.info("Starting Microphone Recording test...")
-        # Check for multiple possible recording directories (Music is preference now)
-        record_dirs = ["/sdcard/Music", "/sdcard/Recordings", "/sdcard/Download"]
-        target_dir = "/sdcard/Music"
+        # Check for multiple possible recording directories
+        target_dir = record_dirs[0]
         for d in record_dirs:
             code, _ = run_adb_cmd(f"ls -d {d}")
             if code == 0:
@@ -75,10 +85,15 @@ def run_tests(ui: UIHelper, reporter: HTMLReportGenerator):
         
         # UI Interaction: 1. Bypass all Permission Dialogs & OOBE Overlays
         logging.info("Bypassing permission and OOBE dialogs...")
+        allow_btns = ui_common.get("allow_texts", ["Allow", "WHILE USING THE APP", "允許", "使用時允許"])
+        confirm_btns = ui_common.get("confirm_texts", ["OK", "Next", "AGREE", "確定", "下一步", "同意"])
+        
+        combined_popups = list(set(allow_btns + confirm_btns))
+        
         for _ in range(8):
             found = False
             # Handles permissions, Got it, Next, etc.
-            for btn_text in ["Allow", "Allow all", "WHILE USING THE APP", "Next", "OK", "AGREE", "Got it", "Continue", "Confirm", "CONFIRM", "允許", "使用時允許", "僅在主用時允許", "我知道了", "下一步", "繼續", "確定"]:
+            for btn_text in combined_popups:
                 btn = ui.d(textMatches=f"(?i){btn_text}")
                 if btn.exists(timeout=1):
                     logging.info(f"Clicking audio popup: {btn_text}")
@@ -101,12 +116,12 @@ def run_tests(ui: UIHelper, reporter: HTMLReportGenerator):
         # UI Interaction: 2. Start Recording
         logging.info("Attempting to start recording...")
         start_button = None
-        # ... (rest of start_button logic) ...
-        # 1. Use the EXACT ID provided by user
-        specific_id = "com.android.soundrecorder:id/recordButton"
-        btn = ui.d(resourceId=specific_id)
-        if btn.exists(timeout=2):
-            start_button = btn
+        # 1. Use the ID from config
+        specific_id = recorder_specs.get("shutter_id")
+        if specific_id:
+            btn = ui.d(resourceId=specific_id)
+            if btn.exists(timeout=2):
+                start_button = btn
         
         # Fallback to common IDs if specific one fails
         if not start_button:
@@ -117,23 +132,12 @@ def run_tests(ui: UIHelper, reporter: HTMLReportGenerator):
                     start_button = btn
                     break
         
-        # Fallback to Content Description
-        if not start_button:
-            for desc in ["Record", "Start", "錄製", "開始", "錄音"]:
-                btn = ui.d(descriptionMatches=f"(?i){desc}")
-                if btn.exists(timeout=1):
-                    start_button = btn
-                    break
-        
         if start_button:
             logging.info(f"Clicking Start/Record button: {start_button.info.get('resourceName') or 'generic'}")
             start_button.click()
             time.sleep(1) # Small delay for UI
         else:
-            logging.warning("Could not find Record button. Saving UI dump...")
-            hierarchy = ui.d.dump_hierarchy()
-            with open("/tmp/audio_recorder_ui.xml", "w") as f:
-                f.write(hierarchy)
+            logging.warning("Could not find Record button.")
 
         # Record background noise for hardware verification
         logging.info("Recording 8s of background noise for hardware verification...")
@@ -141,14 +145,16 @@ def run_tests(ui: UIHelper, reporter: HTMLReportGenerator):
         
         # 3. Stop Recording
         logging.info("Attempting to stop/save recording...")
-        stop_id = "com.android.soundrecorder:id/stopButton"
-        btn = ui.d(resourceId=stop_id)
-        stop_clicked = False # Fixed: Initialize before assignment
-        if btn.exists(timeout=2):
-            btn.click()
-            logging.info("Clicked specific stopButton.")
-            stop_clicked = True
-        else:
+        stop_id = recorder_specs.get("stop_id")
+        stop_clicked = False
+        if stop_id:
+            btn = ui.d(resourceId=stop_id)
+            if btn.exists(timeout=2):
+                btn.click()
+                logging.info("Clicked stopButton via config ID.")
+                stop_clicked = True
+        
+        if not stop_clicked:
             # Fallback
             stop_ids = [".*stop_button.*", ".*done_button.*", ".*save_button.*", ".*btn_stop.*", ".*check.*"]
             for res_id in stop_ids:
@@ -194,15 +200,15 @@ def run_tests(ui: UIHelper, reporter: HTMLReportGenerator):
             try:
                 with open(host_tmp_path, "rb") as f:
                     data = f.read(2000) # Read first 2KB
-                    entropy_score = len(set(data))
+                    e_score = len(set(data))
                 
-                logging.info(f"Audio Entropy Score: {entropy_score} (Unique bytes in 2KB)")
+                logging.info(f"Audio Entropy Score: {e_score} (Unique bytes in 2KB)")
                 
-                # Threshold: > 50 unique bytes indicates actual noise/signal vs static/silence
-                if entropy_score > 50:
-                    reporter.add_result("Audio", "Microphone Hardware Verification", True, f"PASS: Mic is alive (Entropy Score: {entropy_score})")
+                # Threshold: Use from config
+                if e_score > entropy_threshold:
+                    reporter.add_result("Audio", "Microphone Hardware Verification", True, f"PASS: Mic is alive (Entropy Score: {e_score})")
                 else:
-                    reporter.add_result("Audio", "Microphone Hardware Verification", False, f"FAIL: Mic detected as silent/static (Entropy Score: {entropy_score})")
+                    reporter.add_result("Audio", "Microphone Hardware Verification", False, f"FAIL: Mic detected as silent/static (Entropy Score: {e_score})")
             except Exception as analysis_err:
                 reporter.add_result("Audio", "Microphone Hardware Verification", False, f"Analysis Error: {analysis_err}")
         else:

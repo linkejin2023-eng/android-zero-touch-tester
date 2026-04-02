@@ -97,14 +97,26 @@ def main():
     
     # Collect Device Info
     sku_raw = get_system_property("ro.boot.sku")
-    sku_map = {
-        "0x1112": "EVT",
-        "0x1113": "DVT1",
-        "0x1114": "DVT2",
-        "0x1115": "DVT3",
-        "0x1116": "PVT",
-        "0x1117": "MP"
-    }
+    
+    # Load System Configurations from configs/
+    import json
+    import os
+    
+    def load_json_config(filename, default=None):
+        path = os.path.join("configs", filename)
+        try:
+            if os.path.exists(path):
+                with open(path, 'r') as f:
+                    return json.load(f)
+        except Exception as e:
+            logging.warning(f"Could not load {path}: {e}")
+        return default or {}
+
+    build_info = load_json_config("build_info.json")
+    hw_specs_data = load_json_config("hardware_specs.json")
+    ui_selectors_data = load_json_config("ui_selectors.json")
+
+    sku_map = build_info.get("sku_map", {})
     sku_label = sku_map.get(sku_raw, sku_raw)
     
     device_info = {
@@ -130,7 +142,12 @@ def main():
     reporter.add_result("System", "ADB & UIAutomator Connection", True, "Successfully connected to device and injected test agents.")
     
     # Ensure screen is on and won't sleep during tests
-    from framework.adb_helper import keep_screen_on
+    from framework.adb_helper import keep_screen_on, get_stay_on_state, set_stay_on_state
+    
+    # 1. Backup original state
+    original_stay_on = get_stay_on_state()
+    
+    # 2. Force screen on and unlock
     keep_screen_on(True)
 
     # --- Config Driven Preflight & Execution ---
@@ -178,32 +195,31 @@ def main():
         def should_run(mod_name):
             return mods.get(mod_name, True)
         
+        # Extract categorized specs from new config structure
+        hw_specs = hw_specs_data.get("hardware", {})
+        ui_selectors = ui_selectors_data.get("ui_selectors", {})
+        fw_validations = build_info.get("validations", [])
+        
         # Priority: Reboot & Firmware
         if should_run("reboot"):
             test_reboot.run_tests(ui, reporter)
         
-        # Load Firmware/System Expectations if available
-        fw_validations = []
-        try:
-            import json
-            with open("build_info.json", 'r') as f:
-                fw_data = json.load(f)
-                fw_validations = fw_data.get("validations", [])
-        except Exception as e:
-            logging.warning(f"Could not load build_info.json: {e}")
-
         if should_run("firmware"):
             test_firmware.run_tests(ui, reporter, validations=fw_validations)
         
         # Phase 1
         if should_run("audio"):
-            test_audio.run_tests(ui, reporter)
+            test_audio.run_tests(ui, reporter, specs=hw_specs, selectors=ui_selectors)
         if should_run("camera"):
-            test_camera.run_tests(ui, reporter)
+            test_camera.run_tests(ui, reporter, specs=hw_specs, selectors=ui_selectors)
         if should_run("connectivity"):
             # Pass network config if available, otherwise tests will fallback or fail
             net_config = config.get("network", {})
-            test_connectivity.run_tests(ui, reporter, ssid=net_config.get("wifi_ssid"), password=net_config.get("wifi_pass"))
+            test_connectivity.run_tests(ui, reporter, 
+                                        ssid=net_config.get("wifi_ssid"), 
+                                        password=net_config.get("wifi_pass"),
+                                        specs=hw_specs,
+                                        selectors=ui_selectors)
         if should_run("sensors_power"):
             test_sensors_power.run_tests(ui, reporter)
         
@@ -219,9 +235,13 @@ def main():
             baseline_uptime, baseline_files = test_lifecycle.get_metrics()
             logging.info(f"Baseline captured: {baseline_files} files, {baseline_uptime:.2f}h uptime")
     finally:
-        # Restore screen sleep settings after all tests finish
-        logging.info("Tests finished. Restoring screen sleep settings...")
-        keep_screen_on(False)
+        # Restore original screen sleep settings after all tests finish
+        logging.info("Tests finished. Restoring original device state...")
+        if 'original_stay_on' in locals():
+            set_stay_on_state(original_stay_on)
+        else:
+            # Fallback if backup failed
+            keep_screen_on(False)
     
     # Generate Final Report
 

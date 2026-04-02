@@ -1,6 +1,7 @@
 import os
 import json
 import math
+import time
 from datetime import datetime
 import jinja2
 
@@ -11,6 +12,7 @@ class HTMLReportGenerator:
         self.timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self.timestamp_file = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.results = []
+        self.last_mark = time.time() # Added for incremental duration tracking
         self.summary = {
             "total": 0,
             "passed": 0,
@@ -29,6 +31,12 @@ class HTMLReportGenerator:
             status = status_override.upper()
         else:
             status = "PASS" if is_pass else "FAIL"
+            
+        # Automatic incremental duration if not provided
+        if duration == 0.0:
+            now = time.time()
+            duration = now - self.last_mark
+            self.last_mark = now
             
         # Standardize category name for ID usage
         cat_id = f"sec-{category_name.replace(' ', '_')}"
@@ -302,6 +310,8 @@ class HTMLReportGenerator:
           <span>{{ summary.device_info.get('Model', 'Unknown Device') }}</span>
           <span class="sep">/</span>
           <span>{{ timestamp }}</span>
+          <span class="sep">/</span>
+          <span style="color: var(--accent); font-weight: 700;">Duration: {{ summary.duration }}</span>
         </div>
       </div>
     </div>

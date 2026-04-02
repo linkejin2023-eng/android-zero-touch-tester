@@ -5,24 +5,35 @@ import time
 import logging
 import os
 
-def run_tests(ui: UIHelper, reporter: HTMLReportGenerator):
+def run_tests(ui: UIHelper, reporter: HTMLReportGenerator, specs=None, selectors=None):
     logging.info("Running Camera Tests...")
     
+    # Defaults for specs/selectors if not provided
+    if not specs: specs = {}
+    if not selectors: selectors = {}
+    
+    target_pkg = specs.get("camera_package", "org.codeaurora.snapcam")
+    target_dir = specs.get("camera_storage_dir", "/sdcard/DCIM/Camera")
+    video_min_size = specs.get("video_min_size_bytes", 1000000)
+    
+    ui_common = selectors.get("common", {})
+    camera_specs = selectors.get("camera", {})
+
     # Check Camera Service
     code, out = run_adb_cmd("dumpsys media.camera")
     if "Camera 0" in out or "device@3" in out.lower():
         reporter.add_result("Camera", "Camera HAL Initialization", True, "Camera HAL exposes at least one camera device")
     else:
         reporter.add_result("Camera", "Camera HAL Initialization", False, "No camera devices found")
-
-    target_pkg = "org.codeaurora.snapcam"
-    target_dir = "/sdcard/DCIM/Camera"
     
     def bypass_camera_dialogs():
-        # Added 'Confirm', '確定' etc. to handle post-factory reset dialogs
+        allow_btns = ui_common.get("allow_texts", ["Allow", "WHILE USING THE APP", "允許", "使用時允許"])
+        confirm_btns = ui_common.get("confirm_texts", ["OK", "Next", "AGREE", "確定", "下一步", "同意"])
+        combined = list(set(allow_btns + confirm_btns))
+        
         for _ in range(6):
             found = False
-            for btn_text in ["Allow", "WHILE USING THE APP", "Next", "OK", "AGREE", "Confirm", "給予", "使用時允許", "下一步", "確定", "同意"]:
+            for btn_text in combined:
                 btn = ui.d(textMatches=f"(?i){btn_text}")
                 if btn.exists(timeout=1):
                     logging.info(f"Clicking camera popup: {btn_text}")
@@ -77,11 +88,13 @@ def run_tests(ui: UIHelper, reporter: HTMLReportGenerator):
 
         # Step 2: UI Automator Click (Fallback Strategy)
         shutter_ids = [
+            camera_specs.get("shutter_id"),
             "org.codeaurora.snapcam:id/shutter_button",
             "com.android.camera:id/shutter_button",
             ".*shutter.*"
         ]
         for sid in shutter_ids:
+            if not sid: continue
             try:
                 shutter = ui.d(resourceIdMatches=sid)
                 if shutter.exists(timeout=2):
@@ -193,7 +206,7 @@ def run_tests(ui: UIHelper, reporter: HTMLReportGenerator):
             path = os.path.join(target_dir, f)
             _, size_out = run_adb_cmd(f"stat -c %s {path}")
             size = int(size_out.strip()) if size_out.strip().isdigit() else 0
-            if size > 1000000: # Guaranteed video size for 15s
+            if size > video_min_size: # Guaranteed video size from config
                 final_file = f
                 logging.info(f"File System search found valid file: {final_file} ({size} bytes)")
                 break
@@ -203,7 +216,7 @@ def run_tests(ui: UIHelper, reporter: HTMLReportGenerator):
         path = os.path.join(target_dir, final_file)
         _, size_out = run_adb_cmd(f"stat -c %s {path}")
         size = int(size_out.strip()) if size_out.strip().isdigit() else 0
-        if size > 1000000:
+        if size > video_min_size:
             reporter.add_result("Camera", "Video Recording", True, f"Verified: Video saved as {final_file} ({size} bytes)")
             ui.go_home()
             return

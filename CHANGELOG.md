@@ -1,6 +1,18 @@
 # Changelog
 
 所有關於本專案的顯著變更將會記錄於此檔案中。
+
+## [2026-04-02] - 架構解耦與連線強韌化 (Architecture & Stability)
+### Added (新增)
+- **設定檔精確解耦**：將 `build_info.json` 遷移至 `configs/` 目錄，並依據工作職掌拆分為 `build_info.json` (版本與驗證)、`hardware_specs.json` (硬體參數) 與 `ui_selectors.json` (UI 字典)。
+- **NFC 強韌偵測**：實作 30s 輪詢 (Polling) 機制與 `logcat -c` 自動清理，解決實體 Tag 貼附感應失敗問題。
+- **螢幕狀態管理**：新增測試前自動喚醒 (Wakeup) 與解鎖 (Unlock) 功能，並實作電源狀態「備份與還原」機制，確保測試結束後還原用戶原始休眠設定。
+
+### Changed (變更)
+- **WiFi 連線強韌化**：將連線超時延長至 90s，並導入 `ip addr` 現代指令與 RSSI/Link Speed 即時診斷日誌，解決遠距離連線不穩。
+- **韌體提取穩定性**：針對 WWAN/Baseband 加入 3 次指數後退重試 (Retry with Backoff)，解決 RIL 啟動初期讀取失敗。
+- **報告引擎修補**：修正測試耗時 (Duration) 為 0 的問題，導入自動增量計時器與 Header 總耗時顯示。
+
  
 ## [2026-04-01] - 資料驅動驗證架構 (Data-Driven Verification)
 ### Added (新增)

@@ -1,0 +1,20 @@
+{
+  "hardware": {
+    "audio_stream": 3,
+    "audio_entropy_threshold": 50,
+    "audio_record_dirs": [
+      "/sdcard/Music",
+      "/sdcard/Recordings",
+      "/sdcard/Download"
+    ],
+    "camera_package": "org.codeaurora.snapcam",
+    "camera_storage_dir": "/sdcard/DCIM/Camera",
+    "video_min_size_bytes": 1000000,
+    "wwan_interfaces": [
+      "rmnet",
+      "ccmni",
+      "pdp",
+      "wwan"
+    ]
+  }
+}

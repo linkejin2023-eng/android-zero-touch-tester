@@ -103,10 +103,24 @@ def unlock_device():
     except Exception:
         pass
 
+def get_stay_on_state() -> str:
+    """Returns the current 'stay_on_while_plugged_in' value from global settings."""
+    _, out = run_adb_cmd("settings get global stay_on_while_plugged_in")
+    return out.strip() if out.strip() else "0"
+
+def set_stay_on_state(value: str):
+    """Sets the 'stay_on_while_plugged_in' value (0=off, 1=USB, 2=AC, 3=Both)."""
+    run_adb_cmd(f"settings put global stay_on_while_plugged_in {value}")
+    logging.info(f"Screen 'Stay Awake' policy restored to: {value}")
+
 def keep_screen_on(enable: bool = True):
     """Prevents the screen from sleeping while USB is connected."""
-    val = "true" if enable else "false"
-    run_adb_cmd(f"svc power stayon {val}")
     if enable:
+        logging.info("Waking up and Unlocking device...")
+        # 3 = stay on for both AC and USB
+        run_adb_cmd("settings put global stay_on_while_plugged_in 3")
         unlock_device()
-    logging.info(f"Screen 'Stay Awake' set to: {enable}")
+    else:
+        run_adb_cmd("settings put global stay_on_while_plugged_in 0")
+    
+    logging.info(f"Internal Screen 'Stay Awake' set to: {enable}")

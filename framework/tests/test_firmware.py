@@ -41,29 +41,39 @@ def execute_extractor(ui: UIHelper, extractor):
     
     if ext_type == "shell":
         cmd = extractor.get("command")
-        _, out = run_adb_cmd(cmd)
-        out = out.strip()
-        if not out:
-            return None
-        if extractor.get("split_by"):
-            parts = out.split(extractor.get("split_by"))
-            idx = extractor.get("split_index", 0)
-            if len(parts) > abs(idx) or (idx == -1 and len(parts) > 0):
-                return parts[idx].strip()
-        return out
+        max_retries = 3
+        for attempt in range(max_retries):
+            _, out = run_adb_cmd(cmd)
+            out = (out or "").strip()
+            if out:
+                if extractor.get("split_by"):
+                    parts = out.split(extractor.get("split_by"))
+                    idx = extractor.get("split_index", 0)
+                    if len(parts) > abs(idx) or (idx == -1 and len(parts) > 0):
+                        return parts[idx].strip()
+                return out
+            if attempt < max_retries - 1:
+                logging.info(f"Shell extractor empty, retrying in 3s ({attempt + 1}/{max_retries})...")
+                time.sleep(3)
+        return None
 
     elif ext_type == "logcat":
         cmd = extractor.get("command")
-        _, out = run_adb_cmd(cmd)
-        if not out.strip():
-            return None
-            
-        if extractor.get("split_by"):
-            parts = out.split(extractor.get("split_by"))
-            idx = extractor.get("split_index", -1)
-            if len(parts) > 0:
-                return parts[idx].strip()
-        return out.strip()
+        max_retries = 3
+        for attempt in range(max_retries):
+            _, out = run_adb_cmd(cmd)
+            out = (out or "").strip()
+            if out:
+                if extractor.get("split_by"):
+                    parts = out.split(extractor.get("split_by"))
+                    idx = extractor.get("split_index", -1)
+                    if len(parts) > 0:
+                        return parts[idx].strip()
+                return out
+            if attempt < max_retries - 1:
+                logging.info(f"Logcat extractor empty, retrying in 3s ({attempt + 1}/{max_retries})...")
+                time.sleep(3)
+        return None
 
     elif ext_type == "ui":
         run_adb_cmd("input keyevent KEYCODE_WAKEUP")
