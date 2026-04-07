@@ -11,3 +11,4 @@ MarkupSafe
 requests
 retry2
 Pillow
+PyYAML
