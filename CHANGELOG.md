@@ -2,6 +2,22 @@
 
 所有關於本專案的顯著變更將會記錄於此檔案中。
 
+## [2026-04-10] - 專業級 SSH 觸發式 CI/CD 引擎 (Rsync-over-SSH V2)
+### Added (新增)
+- **無掛載 Rsync-over-SSH 架構**：全面取代不穩定的本地掛載模式，改用 `rsync -av --partial -e ssh` 進行 Image 搬運，具備斷點續傳能力。
+- **專業化 Workspace 管理**：自動讀取遠端伺服器元數據，使用「完整目錄名」（如 `REL_02.01.06.260308_user`）建立獨立工作空間。
+- **動態配置同步機制**：實作即時從 Image Server 提取版本專屬 `build_info.json` 並注入 Workspace，實現配置與執行數據的完整隔離。
+- **工業級安全觸發器 (Safe-Fail)**：
+  - 新增 `releasebuild_v2.bash`，採用背景執行與錯誤隔離機制，確保自動化測試的失敗不影響編譯主流程。
+  - 實作單一變數控制（Single Source of Truth），簡化週末正式發布的操作難度。
+- **秒級驗證模式 (`--check-only`)**：為 `trigger_job.py` 新增核驗模式，可在 10 秒內完成 SSH 權限、遠端路徑與 Workspace 建立的端到端測試。
+
+### Changed (變更)
+- **測試框架路徑適配**：`main.py` 現在支援 `--config-dir` 與 `--report-dir` 參數，實現將所有產物（如 HTML 報表）精確收納至 Workspace。
+
+### Removed (移除)
+- **舊版 Polling 監控組件**：刪除過時的單機輪詢腳本 (`build_monitor.py`, `engine.py`, `worker.py`) 以維持原始碼整潔。
+
 ## [2026-04-02] - 架構解耦與連線強韌化 (Architecture & Stability)
 ### Added (新增)
 - **設定檔精確解耦**：將 `build_info.json` 遷移至 `configs/` 目錄，並依據工作職掌拆分為 `build_info.json` (版本與驗證)、`hardware_specs.json` (硬體參數) 與 `ui_selectors.json` (UI 字典)。

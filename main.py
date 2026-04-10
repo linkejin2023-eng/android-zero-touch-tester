@@ -20,6 +20,8 @@ def main():
     parser.add_argument("--only-tests", action="store_true", help="Skip flash/OOBE/Provisioning, run tests directly on established device")
     parser.add_argument("--no-wipe", action="store_true", help="Skip userdata wipe during flashing (simulated OTA)")
     parser.add_argument("--factory-reset", action="store_true", help="Trigger Factory Reset via HID sequence (Expert only)")
+    parser.add_argument("--config-dir", type=str, help="Directory to load build_info.json and other configs (Workspace path)")
+    parser.add_argument("--report-dir", type=str, default="reports", help="Directory to save the HTML report")
     args = parser.parse_args()
 
     # --- Phase -1: Emergency Factory Reset (Expert only) ---
@@ -93,7 +95,7 @@ def main():
     start_time = time.time()
         
     # Initialize Reporter
-    reporter = HTMLReportGenerator()
+    reporter = HTMLReportGenerator(output_dir=args.report_dir)
     
     # Collect Device Info
     sku_raw = get_system_property("ro.boot.sku")
@@ -103,6 +105,18 @@ def main():
     import os
     
     def load_json_config(filename, default=None):
+        # 1. 優先從 Workspace (args.config_dir) 讀取
+        if args.config_dir:
+            path = os.path.join(args.config_dir, filename)
+            if os.path.exists(path):
+                try:
+                    with open(path, 'r') as f:
+                        logging.info(f"Loaded {filename} from workspace: {path}")
+                        return json.load(f)
+                except Exception as e:
+                    logging.warning(f"Error loading {path}: {e}")
+
+        # 2. 如果 Workspace 找不到，回退到全域 configs/
         path = os.path.join("configs", filename)
         try:
             if os.path.exists(path):

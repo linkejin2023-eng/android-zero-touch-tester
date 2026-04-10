@@ -1,0 +1,19 @@
+# SSH-Triggered Sanity Test Engine Config (Rsync-over-SSH 版)
+
+# 遠端 Image 伺服器設定 (第三台 Server)
+remote_server:
+  host: "10.192.188.16"
+  user: "nick_chuang"
+  release_root: "/media/share/thorpe/Android_15/Release_pega"
+  daily_root: "/media/share/thorpe/Android_15/dailybuild"
+
+# 工作路徑
+workspace_base_dir: "./workspaces"
+history_db_path: "monitor/history.db"
+lock_file: "test.lock"
+
+# 檔案設定
+fastboot_filename: "fastboot.zip"
+
+# 清理策略
+max_retention_zips: 2

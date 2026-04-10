@@ -92,11 +92,26 @@ python3 main.py --oobe --sku china --skip-tests
 python3 main.py
 ```
 
-### 4. 參數說明
+### 3. SSH 遠程觸發 (CI/CD 專用)
+針對 Jenkins 或外部主機主動觸發測試，使用 `trigger_job.py` 進入點：
+```bash
+python3 trigger_job.py --build 02.01.06 --type user --source release
+```
+該腳本會：
+1. 自動從遠端 Image Server 下載指定的燒錄包與 `build_info.json`。
+2. 建立具備高度可追溯性的專屬 Workspace 目錄。
+3. 執行測試並將所有產物（Log/報表）收納至該目錄。
+
+---
+
+### 4. 參數說明 (main.py)
 - `--flash <path>`: 指定燒錄包路徑，支援自動解壓縮。
 - `--oobe`: 啟動 AOA HID 盲打流程，自動解除 OOBE 並開啟 ADB。
 - `--sku <gms|china>`: 指定產品 SKU（預設為 `gms`）。會切換不同的 OOBE 盲打序列與 ADB 授權路徑。
 - `--skip-tests`: 僅執行燒錄與 OOBE 解除，完成後立即退出，不執行功能測試。
+- `--config-dir <path>`: 指定配置目錄 (如 Workspace)，優先讀取該目錄下的 `build_info.json`。
+- `--report-dir <path>`: 指定 HTML 報表輸出目錄。
 
 ### 5. 查看報告
-執行完畢後，HTML 測試報告將自動產生於 `reports/` 目錄中。
+- **主動執行**：報告產生成於 `reports/`。
+- **SSH 觸發**：報告產生成於 `workspaces/完整版本號_type/report/`。

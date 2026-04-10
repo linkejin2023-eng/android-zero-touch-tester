@@ -1,43 +1,53 @@
-# SSH-Triggered Sanity Test Engine (No-Mount 版本)
+# SSH-Triggered Sanity Test Engine (V2 - No-Mount / Rsync-over-SSH)
 
-將自動化測試功能轉型為由外部系統（如 Jenkins/Build Server）透過 SSH 主動觸發的任務引擎。本版本採用 **Rsync-over-SSH** 技術，無需網路掛載即可進行高效 Image 搬運。
+本系統支援由外部 CI/CD 平台（如 Jenkins 或特定伺服器）透過 SSH 主動觸發測試任務。V2 版本全面改為 **Rsync-over-SSH** 傳輸，不僅符合「無掛載 (No-Mount)」的安全政策，更實現了 Workspace 的專業化管理。
+
+## 核心特色 (V2 升級)
+
+- **無感網路掛載 (Zero-Mount Dependency)**：不再需要預先部署掛載點，降低伺服器維護成本。
+- **Workspace 對齊 (Identity Sync)**：測試目錄名稱自動對齊 Image Server 上的完整版本名（例如 `REL_02.01.06.260308_user`），優化數據回溯。
+- **動態配置同步 (Dynamic Build Info)**：自動從 Image Server 抓取該版本對應的 `build_info.json`。
+- **斷點續傳 (Partial Transfer)**：採用 `rsync --partial`，在不穩定網路下具備自動重連補傳能力。
+
+## 觸發方式 (Triggering)
+
+在外部伺服器執行以下指令（需已配置 SSH 免密碼）：
+
+```bash
+ssh <user>@<測試機IP> "cd /home/franck_lin/auto_test/ && ./.venv/bin/python3 trigger_job.py --build <版本號簡寫> --type user --source release --sku gms"
+```
+
+### 參數說明 (trigger_job.py)
+- `--build`: 欲測試的版本號（如 `02.01.06`）。系統會自動模糊搜尋並匹配遠端最合適的完整目錄。
+- `--type`: 指定版本類型 (`user` / `userdebug`)。
+- `--source`: 指定目錄來源 (`release` / `daily`)。
+- `--sku`: 指定產品 SKU (`gms` / `china`)。
+- `--check-only`: **[V2.1 新增]** 僅執行連線、路徑與資料夾建立核驗，不進行傳輸，用於快速驗證流水線。
+
+## 工作空間結構 (Workspace Structure)
+
+每次測試會建立獨立的 Workspace，其結構如下：
+
+```text
+workspaces/REL_02.01.06.260308_user/
+├── console.log            # 任務執行完整日誌
+├── fastboot.zip           # 下載的燒錄包
+├── build_info.json        # [V2] 從遠端抓取的該版本專屬規格檔
+├── report/                # [V2] 該次測試產生的 HTML 報表
+│   └── sanity_report_xxx.html
+└── artifacts/             # [V2] 預留存放截圖、Logcat 等附加產物
+```
 
 ## 系統架構簡述
 
-- **觸發方式 (Triggering)**：
-  外部系統執行以下指令啟動測試：
-  `ssh <user>@<ip> "cd /path/to/auto_test/ && ./venv/bin/python3 trigger_job.py --build <build_num> --type <type> --source <daily|release> --sku <gms|china> > /dev/null 2>&1 &"`
+1. **偵測階段**：`trigger_job.py` 透過 SSH 掃描 Image Server 上的目錄。
+2. **同步階段**：使用 `rsync` 提取 `fastboot.zip` 與 `build_info.json` 至 Workspace。
+3. **執行階段**：啟動 `main.py` 並傳入 `--config-dir` 與 `--report-dir` 參數，確保測試引擎只讀取動態同步的配置，並將產物回寫至 Workspace。
+4. **清理階段**：根據 `max_retention_zips` 策略自動清理過期的 Image 包，但保留文字日誌與報表。
 
-- **傳輸方式 (Transfer)**：
-  採用 `rsync` 透過 SSH 隧道從 Image Server 拖取檔案。支援斷點續傳與自動校驗，解決了傳統 SCP 斷線需從頭開始的問題。
+## 環境依賴 (Prerequisites)
 
-- **環境依賴 (Prerequisites)**：
-  1. 測試機須具備 `rsync` 工具。
-  2. 測試機須已將其 SSH Public Key 加入 Image Server 的 `authorized_keys` 以實現免密碼傳輸。
-
-## 主要功能
-
-### 1. 無掛載設計 (No-Mount Design)
-- 移除對 `/mnt/image_share` 的依賴。
-- 透過 SSH 遠端命令 (`ls -d`) 動態偵測 Image Server 上的目錄結構，實現 Release 與 Daily 的模糊匹配。
-
-### 2. 強韌的搬運機制 (Robust Transfer)
-- 使用 `rsync --partial` 指令。
-- 腳本具備指數型退避 (Exponential Backoff) 的重試邏輯，若傳輸中斷會自動重連並從中斷點續傳。
-
-### 3. 工作空間隔離 (Workspace Isolation)
-- 每次測試建立獨立 `workspaces/{build_num}_{type}/` 目錄。
-- 保留最新 2 份 `fastboot.zip` 並無限期保留執行日誌與測試報表。
-
-### 4. 阻塞式任務排隊 (Queuing)
-- 採用檔案鎖機制。若設備正在執行測試，後續請求會自動排隊等待，確保資源不衝突。
-
----
-
-## 檔案結構說明
-
-- `trigger_job.py`: 核心調度腳本。
-- `monitor/logic.py`: 遠端目錄讀取與 SKU 解析邏輯。
-- `configs/monitor_config.yaml`: 定義遠端 Host、User 與基礎路徑。
-- `framework/lock_manager.py`: 阻塞式鎖定實作。
+1. 測試機須具備 `rsync` 工具。
+2. 測試機須具備 Image Server 的 **SSH 免密碼** 權限：
+   `ssh-copy-id -i ~/.ssh/id_rsa.pub <remote_user>@10.192.188.16`
 
