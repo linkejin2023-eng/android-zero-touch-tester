@@ -22,6 +22,8 @@ def main():
     parser.add_argument("--factory-reset", action="store_true", help="Trigger Factory Reset via HID sequence (Expert only)")
     parser.add_argument("--config-dir", type=str, help="Directory to load build_info.json and other configs (Workspace path)")
     parser.add_argument("--report-dir", type=str, default="reports", help="Directory to save the HTML report")
+    parser.add_argument("--build", type=str, default="Unknown", help="Build version number for report naming")
+    parser.add_argument("--type", type=str, default="user", choices=["user", "userdebug"], help="Build variant for report naming")
     args = parser.parse_args()
 
     # --- Phase -1: Emergency Factory Reset (Expert only) ---
@@ -304,7 +306,7 @@ def main():
 
     # --- Final Report Generation (After all lifecycle phases) ---
     duration = time.time() - start_time
-    report_path = reporter.finalize(duration)
+    report_path = reporter.finalize(duration, version=args.build, variant=args.type)
     
     logging.info(f"--- Tests Completed in {duration:.1f}s ---")
     logging.info(f"Report location: {report_path}")

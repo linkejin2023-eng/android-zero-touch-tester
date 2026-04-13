@@ -129,7 +129,7 @@ class HTMLReportGenerator:
             cat["skip_pct"] = (cat["skipped"] / total) * 100
             cat["is_perfect"] = (cat["passed"] == total)
 
-    def finalize(self, duration_secs: float) -> str:
+    def finalize(self, duration_secs: float, version: str = "Unknown", variant: str = "user") -> str:
         self.summary["duration"] = f"{duration_secs:.2f}s"
         
         if self.summary["failed"] == 0 and self.summary["error"] == 0:
@@ -148,7 +148,7 @@ class HTMLReportGenerator:
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sanity Test Report - {{ summary.device_info.get('Model', 'Device') }}</title>
+<title>Smoke Test Report - {{ summary.device_info.get('Model', 'Device') }}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,500;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
@@ -305,7 +305,7 @@ class HTMLReportGenerator:
     <div class="header-left">
       <div class="header-icon">&#x2691;</div>
       <div>
-        <h1>System Sanity Report</h1>
+        <h1>System Smoke Test Report</h1>
         <div class="header-meta">
           <span>{{ summary.device_info.get('Model', 'Unknown Device') }}</span>
           <span class="sep">/</span>
@@ -423,7 +423,7 @@ class HTMLReportGenerator:
   {% endfor %}
 
   <footer class="animate-in d5">
-    <span>Sanity Automation Framework / T70</span>
+    <span>Smoke Test Automation Framework / T70</span>
     <span>Generated {{ timestamp }}</span>
   </footer>
 </div>
@@ -466,7 +466,10 @@ function filterTests(status) {
             donut=donut
         )
         
-        filename = f"{self.output_dir}/sanity_report_{self.timestamp_file}.html"
+        # 檔名規則：T70_smoke_test_report_VERSION_VARIANT_TIMESTAMP.html
+        model = self.summary["device_info"].get('Model', 'T70').replace(" ", "_")
+        filename = f"{self.output_dir}/{model}_smoke_test_report_{version}_{variant}_{self.timestamp_file}.html"
+        
         with open(filename, "w", encoding="utf-8") as f:
             f.write(output_html)
             

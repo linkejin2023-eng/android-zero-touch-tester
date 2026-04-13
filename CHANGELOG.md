@@ -2,6 +2,15 @@
 
 所有關於本專案的顯著變更將會記錄於此檔案中。
 
+## [2026-04-13] - Smoke Test 品牌化更名與產物回傳 (Result Handback)
+### Added (新增)
+- **產物回傳 (Handback) 閉環**：測試結束後自動將報告同步回 Image Server 的版本目錄 (`test_reports/`)。
+- **動態報表命名**：報表檔名現在包含 Model, Version 與 Variant (例如 `T70_smoke_test_report_02.02.01_user_*.html`)。
+
+### Changed (變更)
+- **全面品牌化更名**：將全系統的「Sanity Test」更名為「Smoke Test」，報表標題同步更換為「System Smoke Test Report」。
+- **進入點控制流升級**：`main.py` 與 `trigger_job.py` 新增元數據傳遞支援。
+
 ## [2026-04-13] - 控制反轉與路徑注入 (IoC & Path Injection)
 ### Added (新增)
 - **CI 注入路徑模式 (IoC Architecture)**：實作由 CI 腳本主動提供 Image 絕對路徑的機制，徹底解耦測試引擎與 Image Server 的目錄搜尋邏輯。

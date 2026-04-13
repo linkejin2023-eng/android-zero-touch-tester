@@ -163,9 +163,11 @@ def run_job(args, config, db):
             cmd = get_flash_command(main_py, local_zip, sku)
             cmd[0] = sys.executable 
             
-            # 加入 Workspace 配置與報表路徑
+            # 加入 Workspace 配置、報表路徑與元數據 (用於報表命名)
             cmd.extend(["--config-dir", ws_dir])
             cmd.extend(["--report-dir", os.path.join(ws_dir, "report")])
+            cmd.extend(["--build", full_build_name])
+            cmd.extend(["--type", build_type])
             
             log_out.write(f"Executing: {' '.join(cmd)}\n")
             log_out.write("-" * 40 + "\n")
@@ -178,6 +180,28 @@ def run_job(args, config, db):
             status = "SUCCESS" if process.returncode == 0 else "FAILED"
             log_out.write(f"\n" + "-" * 40 + "\n")
             log_out.write(f"Job Finished with status: {status} (Code: {process.returncode})\n")
+
+            # 8. [V2.3 新增] 產物回傳 (Handback Artifacts to Image Server)
+            if source_zip:
+                try:
+                    log_out.write(f"\n[Handback] Transferring reports back to Image Server...\n")
+                    remote_parts = source_zip.split(":")
+                    if len(remote_parts) == 2:
+                        remote_host = remote_parts[0]
+                        remote_dir = os.path.dirname(remote_parts[1])
+                        target_report_dir = os.path.join(remote_dir, "test_reports")
+                        
+                        # 在遠端建立目錄
+                        mkdir_cmd = ["ssh", remote_host, f"mkdir -p {target_report_dir}"]
+                        subprocess.run(mkdir_cmd, stdout=log_out, stderr=subprocess.STDOUT)
+                        
+                        # 同步報表
+                        local_report_dir = os.path.join(ws_dir, "report/") # 注意結尾斜線
+                        rsync_back_cmd = ["rsync", "-av", "-e", "ssh", local_report_dir, f"{remote_host}:{target_report_dir}/"]
+                        subprocess.run(rsync_back_cmd, stdout=log_out, stderr=subprocess.STDOUT)
+                        log_out.write(f"[Handback] Reports synced to: {target_report_dir}\n")
+                except Exception as he:
+                    log_out.write(f"[Handback Fail] Could not sync reports back: {he}\n")
             
             db.update_status(full_build_name, build_type, status)
             logging.info(f"Job Finished: {status}")

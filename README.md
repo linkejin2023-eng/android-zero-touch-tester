@@ -1,4 +1,4 @@
-# Android Sanity Test Automation 
+# Android Smoke Test Automation (T70)
 
 [![Python](https://img.shields.io/badge/Python-3.x-blue.svg)](https://www.python.org/)
 [![Android](https://img.shields.io/badge/Android-15-green.svg)](https://www.android.com/)
@@ -32,7 +32,7 @@
 1. **100% 免接觸 (Zero-Touch) 軟體解鎖**：領先業界實作鎖定畫面自動偵測與盲打解鎖，確保測試不因裝置休眠而中斷。
 2. **音訊/感測器「生存」驗證**：透過方差與熵值 (Entropy) 數學模型，在靜止狀態下精確判定麥克風與加速度計硬體存活。
 3. **三段式相機快門策略**：優先發動硬體鍵值 (Keyevent 27)，具備跨 App 版本的極高維護性與相容性。
-4. **自動化 HTML 報告與發布建議**：一鍵產生清楚的綠/紅 Pass 表單，並基於成敗給出 `Release Recommendation`。
+4. **自動化 HTML 報告與發布建議**：一鍵產生清楚的綠/紅 Pass 表單，並基於 Smoke Test 成敗給出 `Release Recommendation`。
 
 ## 目錄與技術文檔 (Documentation)
 所有的設計細節、技術突破與測試覆蓋範圍，皆詳載於 `docs/` 資料夾下：
@@ -98,9 +98,9 @@ python3 main.py
 python3 trigger_job.py --build 02.01.06 --type user --source release --remote-path /path/to/fastboot.zip
 ```
 該腳本支援：
-1. **路徑注入 (IoC)**：透過 `--remote-path` 接收來自 CI 腳本的絕對路徑，確保數據來源一致性。
-2. **自動同步**：從遠端 Image Server 下載指定的燒錄包與 `build_info.json`。
-3. **隔離空間**：建立具備高度可追溯性的專屬 Workspace 目錄，將 Log/報表完整收納。
+1. **路徑注入 (IoC)**：透過 `--remote-path` 接收來自 CI 腳本的絕對路徑。
+2. **自動同步與回傳 (Handback)**：從遠端下載燒錄包，並在測試結束後**自動將 Smoke Test 報告同步回 Image Server**。
+3. **隔離空間**：建立具備高度可追溯性的專屬 Workspace 目錄。
 
 ---
 
@@ -111,6 +111,8 @@ python3 trigger_job.py --build 02.01.06 --type user --source release --remote-pa
 - `--skip-tests`: 僅執行燒錄與 OOBE 解除，完成後立即退出，不執行功能測試。
 - `--config-dir <path>`: 指定配置目錄 (如 Workspace)，優先讀取該目錄下的 `build_info.json`。
 - `--report-dir <path>`: 指定 HTML 報表輸出目錄。
+- `--build <version>`: 指定編譯版本（用於報表檔名與標題）。
+- `--type <user|userdebug>`: 指定編譯類型（用於報表檔名與標題）。
 
 ### 5. 查看報告
 - **主動執行**：報告產生成於 `reports/`。
