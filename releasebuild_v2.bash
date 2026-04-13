@@ -16,22 +16,36 @@ OLD_DATE="2026-03-31"
 
 TEST_SERVER="10.192.220.17"
 IMAGE_SERVER="10.192.188.16"
-REMOTE_USER="nick_chuang"
+REMOTE_USER="nick_chuang"     # Image Server User
 PASSWORD="32600"
+REMOTE_TEST_USER="franck_lin"   # Test Server User
+
+# [SoT 參數] 定義 Image Server 上的路徑根目錄
+REMOTE_RELEASE_ROOT="/media/share/thorpe/Android_15/Release_pega"
+
+# [環境參數] 定義測試機與本地 Server 的工作目錄
+REMOTE_TEST_DIR="/home/franck_lin/auto_test"
+LOCAL_BIN_DIR="/home/server/bin"
+LOCAL_ARTIFACT_DIR="A15_artifact"
+SCM_BUILD_DIR="/home/server/thorpe_dailybuild_A15/shell-script"
+
+# [模板參數] 定義原始編譯腳本名稱 (SCM 提供)
+TEMPLATE_USERDEBUG="auto_release_build_A15.bash"
+TEMPLATE_USER="auto_release_userbuild_A15.bash"
 
 # --- 功能函數：同步上傳 Build Info ---
 upload_json_to_server () {
     local variant=$1
     echo "[V2-INFO] Syncing build_info.json for $variant..."
     
-    pushd /home/server/bin/ > /dev/null
+    pushd "$LOCAL_BIN_DIR" > /dev/null
     sed "s/$OLD_VERSION/$VERSION/g" build_info.json > build_info_tmp.json
     sed -i "s/$OLD_DATE/$VERSION_DATE/g" build_info_tmp.json
     
-    # 執行上傳
+    # 執行上傳 (使用變數化路徑)
     expect -c "
         set timeout 300
-        spawn scp build_info_tmp.json $REMOTE_USER@$IMAGE_SERVER:/media/share/thorpe/Android_15/Release_pega/REL_$VERSION/$variant/build_info.json
+        spawn scp build_info_tmp.json $REMOTE_USER@$IMAGE_SERVER:$REMOTE_RELEASE_ROOT/REL_$VERSION/$variant/build_info.json
         expect \"password:\"
         send \"${PASSWORD}\r\"
         expect eof"
@@ -44,23 +58,26 @@ trigger_remote_test () {
     local variant=$1
     echo "[V2-INFO] Triggering automated test on $TEST_SERVER for $variant..."
     
+    # [IoC 升級] 由 CI 腳本直接決定絕對路徑
+    local remote_path="$REMOTE_RELEASE_ROOT/REL_$VERSION/$variant/fastboot.zip"
+    
     local extra_flags=""
     if [ "$DRY_RUN" = true ]; then
         extra_flags="--check-only"
     fi
 
-    (ssh franck_lin@$TEST_SERVER "cd /home/franck_lin/auto_test/ && ./.venv/bin/python3 trigger_job.py --build $VERSION --type $variant --source release $extra_flags" || echo "[V2-WARN] Remote trigger for $variant failed, but continuing build pipeline...") &
+    (ssh $REMOTE_TEST_USER@$TEST_SERVER "cd $REMOTE_TEST_DIR && ./.venv/bin/python3 trigger_job.py --build $VERSION --type $variant --source release $extra_flags --remote-path $remote_path" || echo "[V2-WARN] Remote trigger for $variant failed, but continuing build pipeline...") &
 }
 
 # =================================================================
 # MAIN FLOW - 正式編譯流程
 # =================================================================
 
-# 1. 準備編譯腳本 (永遠讀取原始 .bash 檔案)
-sed "s/$OLD_VERSION/$VERSION/g" auto_release_build_A15.bash > auto_release_build_A15_v2.bash
+# 1. 準備編譯腳本 (使用變數化的模板名稱)
+sed "s/$OLD_VERSION/$VERSION/g" $TEMPLATE_USERDEBUG > auto_release_build_A15_v2.bash
 sed -i "s/2.2.1/2.2.2/g" auto_release_build_A15_v2.bash
 
-sed "s/$OLD_VERSION/$VERSION/g" auto_release_userbuild_A15.bash > auto_release_userbuild_A15_v2.bash
+sed "s/$OLD_VERSION/$VERSION/g" $TEMPLATE_USER > auto_release_userbuild_A15_v2.bash
 sed -i "s/2.2.1/2.2.2/g" auto_release_userbuild_A15_v2.bash
 
 # 2. 執行 Userdebug 編譯
@@ -69,9 +86,9 @@ if [ "$DRY_RUN" = true ]; then
     sleep 2
 else
     echo "[V1-ORIGIN] Starting Userdebug build..."
-    rm -rf A15_artifact/artifact/
+    rm -rf $LOCAL_ARTIFACT_DIR/artifact/
     bash auto_release_build_A15_v2.bash
-    mv /home/server/thorpe_dailybuild_A15/shell-script/artifact A15_artifact/
+    mv $SCM_BUILD_DIR/artifact $LOCAL_ARTIFACT_DIR/
 fi
 
 # 3. [V2 插入] Userdebug 完工 -> 上傳 JSON -> 觸發測試

@@ -95,12 +95,12 @@ python3 main.py
 ### 3. SSH 遠程觸發 (CI/CD 專用)
 針對 Jenkins 或外部主機主動觸發測試，使用 `trigger_job.py` 進入點：
 ```bash
-python3 trigger_job.py --build 02.01.06 --type user --source release
+python3 trigger_job.py --build 02.01.06 --type user --source release --remote-path /path/to/fastboot.zip
 ```
-該腳本會：
-1. 自動從遠端 Image Server 下載指定的燒錄包與 `build_info.json`。
-2. 建立具備高度可追溯性的專屬 Workspace 目錄。
-3. 執行測試並將所有產物（Log/報表）收納至該目錄。
+該腳本支援：
+1. **路徑注入 (IoC)**：透過 `--remote-path` 接收來自 CI 腳本的絕對路徑，確保數據來源一致性。
+2. **自動同步**：從遠端 Image Server 下載指定的燒錄包與 `build_info.json`。
+3. **隔離空間**：建立具備高度可追溯性的專屬 Workspace 目錄，將 Log/報表完整收納。
 
 ---
 

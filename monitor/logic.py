@@ -46,9 +46,10 @@ def get_remote_dirs(host, user, base_path, pattern):
         logging.error(f"Error listing remote dirs: {e}")
         return []
 
-def find_source_zip(config, build_number, build_type, source_type, sku=None):
+def find_source_zip(config, build_number, build_type, source_type, sku=None, remote_path=None):
     """
     尋找遠端伺服器上的 Image 與 Config。
+    如果傳入 remote_path，則跳過搜尋，直接以該路徑為準 (IoC 模式)。
     回傳字典: { 'zip_path': str, 'json_path': str, 'full_build_name': str }
     """
     remote = config.get('remote_server', {})
@@ -59,41 +60,51 @@ def find_source_zip(config, build_number, build_type, source_type, sku=None):
         logging.error("Remote server config missing.")
         return None
 
-    if source_type == "release":
-        project_root_remote = remote.get('release_root')
-        pattern = get_full_build_name(build_number)
+    if remote_path:
+        # --- IoC 模式：直接解析傳入的絕對路徑 ---
+        logging.info(f"CI-Injected mode: Using provided path {remote_path}")
+        zip_abs_path = remote_path
+        # 從絕對路徑中推算 target_dir (版本目錄)
+        # 例如: .../REL_02.01.06/user/fastboot.zip -> .../REL_02.01.06
+        if source_type == "release":
+            target_dir = os.path.dirname(os.path.dirname(zip_abs_path))
+        else:
+            target_dir = os.path.dirname(zip_abs_path)
+            
+        full_build_name = os.path.basename(target_dir.rstrip('/'))
+        json_dir = os.path.dirname(zip_abs_path.replace(target_dir, "").lstrip('/'))
+        json_abs_path = os.path.join(target_dir, json_dir, "build_info.json")
     else:
-        project_root_remote = remote.get('daily_root')
-        pattern = build_number
+        # --- 傳統模式：模糊搜尋 ---
+        if source_type == "release":
+            project_root_remote = remote.get('release_root')
+            pattern = get_full_build_name(build_number)
+        else:
+            project_root_remote = remote.get('daily_root')
+            pattern = build_number
 
-    # 獲取遠端符合條件的目錄
-    matching_dirs = get_remote_dirs(host, user, project_root_remote, pattern)
-    
-    # SKU 過濾
-    if sku == "china":
-        matching_dirs = [d for d in matching_dirs if (".N." in d or "_nogms" in d)]
-    elif sku == "gms":
-        matching_dirs = [d for d in matching_dirs if (".N." not in d and "_nogms" not in d)]
-
-    if not matching_dirs:
-        return None
+        matching_dirs = get_remote_dirs(host, user, project_root_remote, pattern)
         
-    # 取得最新的目錄 (按名稱降序)
-    target_dir = sorted(matching_dirs, reverse=True)[0]
-    
-    # 提取 Full Build Name (目錄名稱)
-    full_build_name = os.path.basename(target_dir.rstrip('/'))
-    
-    # 路徑判定
-    if source_type == "release":
-        zip_rel_path = os.path.join(build_type, config.get('fastboot_filename', 'fastboot.zip'))
-    else:
-        zip_rel_path = config.get('fastboot_filename', 'fastboot.zip')
+        # SKU 過濾
+        if sku == "china":
+            matching_dirs = [d for d in matching_dirs if (".N." in d or "_nogms" in d)]
+        elif sku == "gms":
+            matching_dirs = [d for d in matching_dirs if (".N." not in d and "_nogms" not in d)]
 
-    zip_abs_path = os.path.join(target_dir, zip_rel_path)
-    # 修正：JSON 應該跟隨 Zip 所在的子目錄 (例如 user/ 或 userdebug/)
-    json_dir = os.path.dirname(zip_rel_path)
-    json_abs_path = os.path.join(target_dir, json_dir, "build_info.json")
+        if not matching_dirs:
+            return None
+            
+        target_dir = sorted(matching_dirs, reverse=True)[0]
+        full_build_name = os.path.basename(target_dir.rstrip('/'))
+        
+        if source_type == "release":
+            zip_rel_path = os.path.join(build_type, config.get('fastboot_filename', 'fastboot.zip'))
+        else:
+            zip_rel_path = config.get('fastboot_filename', 'fastboot.zip')
+
+        zip_abs_path = os.path.join(target_dir, zip_rel_path)
+        json_dir = os.path.dirname(zip_rel_path)
+        json_abs_path = os.path.join(target_dir, json_dir, "build_info.json")
     
     return {
         "zip_path": f"{user}@{host}:{zip_abs_path}",

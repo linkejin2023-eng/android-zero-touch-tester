@@ -2,6 +2,12 @@
 
 所有關於本專案的顯著變更將會記錄於此檔案中。
 
+## [2026-04-13] - 控制反轉與路徑注入 (IoC & Path Injection)
+### Added (新增)
+- **CI 注入路徑模式 (IoC Architecture)**：實作由 CI 腳本主動提供 Image 絕對路徑的機制，徹底解耦測試引擎與 Image Server 的目錄搜尋邏輯。
+- **trigger_job.py 支持 `--remote-path`**：新增路徑注入參數，優先級高於自動模糊搜尋，符合「主管要求：Image path 由 CI 提供」的架構規範。
+- **releasebuild_v2.bash 安全路徑計算**：在編譯端即時計算事實來源路徑 (Source of Truth)，確保測試數據的高度一致性。
+
 ## [2026-04-10] - 專業級 SSH 觸發式 CI/CD 引擎 (Rsync-over-SSH V2)
 ### Added (新增)
 - **無掛載 Rsync-over-SSH 架構**：全面取代不穩定的本地掛載模式，改用 `rsync -av --partial -e ssh` 進行 Image 搬運，具備斷點續傳能力。

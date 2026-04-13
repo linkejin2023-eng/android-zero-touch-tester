@@ -36,6 +36,7 @@ def main():
     parser.add_argument("--sku", type=str, choices=["gms", "china"], help="Manually override SKU")
     parser.add_argument("--config", type=str, default="configs/monitor_config.yaml", help="Path to config file")
     parser.add_argument("--check-only", action="store_true", help="Only verify connectivity and paths, skip execution")
+    parser.add_argument("--remote-path", type=str, help="Inject absolute path to remote fastboot.zip (skips searching)")
 
     args = parser.parse_args()
 
@@ -71,7 +72,8 @@ def run_job(args, config, db):
     sku = args.sku if args.sku else parse_sku_from_build(build_num, source_type)
     
     # 3. 尋找 Image 元數據 (包含完整名稱與 JSON 路徑)
-    build_meta = find_source_zip(config, raw_build, build_type, source_type, sku=sku)
+    # 支援注入模式：傳入 args.remote_path
+    build_meta = find_source_zip(config, raw_build, build_type, source_type, sku=sku, remote_path=getattr(args, 'remote_path', None))
     
     if not build_meta:
         error_msg = f"Could not find source zip for {raw_build} in remote {source_type} folders."
