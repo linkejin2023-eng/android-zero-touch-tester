@@ -97,6 +97,7 @@ python3 main.py --oobe --sku china --skip-tests
 ### 1. Build Server 側 (`ci-integration/build_server/`)
 存放於該目錄下的腳本負責調度編譯流程與觸發遠端測試：
 - **`releasebuild_v2.bash`**: CI 核心主控腳本，負責修改版本號、啟動編譯腳本、上傳 `build_info.json` 並透過 SSH 觸發測試。
+- **`dailybuild_v2.bash`**: Daily 核心主控腳本，專為每日自動化編譯設計，透過「日期回傳機制」精準對接當次產出的 Image 路徑並觸發測試。
 - **`auto_release_*.bash`**: Release 版本編譯模板。
 - **`auto_daily_*.bash`**: Daily 版本編譯模板。
 

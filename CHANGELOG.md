@@ -5,7 +5,8 @@
 ## [2026-04-14] - CI-Integration 結構化遷移與路徑防呆優化 (Deployment Optimization)
 ### Added (新增)
 - **CI 專屬目錄化**：建立 `ci-integration/build_server/` 資料夾，將 Build Server 側的 Orchestration 腳本與編譯範本集中管理。
-- **Bash 路徑防呆機制 (SCRIPT_DIR)**：在所有 CI 腳本（`releasebuild_v2.bash`）中導入 `SCRIPT_DIR` 自動定位邏輯，解決相對路徑對 PWD 的依賴，支援跨目錄呼叫。
+- **Daily Build 自動化閉環**：實作 `dailybuild_v2.bash`，導入「動態日期回傳 (Path Return Handshake)」機制，解決 Daily build 與 Test Server 之間因時間戳動態變化導致的路徑對接問題。
+- **Bash 路徑防呆機制 (SCRIPT_DIR)**：在所有 CI 腳本（`releasebuild_v2.bash` 與 `dailybuild_v2.bash`）中導入 `SCRIPT_DIR` 自動定位邏輯，解決相對路徑對 PWD 的依賴，支援跨目錄呼叫。
 - **混合部署指引**：在 `README.md` 中新增架構章節，明確區分 Build Server 與 Test Server 的腳本分工。
 
 ### Changed (變更)
