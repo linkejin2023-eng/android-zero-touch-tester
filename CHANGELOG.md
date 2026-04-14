@@ -2,7 +2,16 @@
 
 所有關於本專案的顯著變更將會記錄於此檔案中。
 
-## [2026-04-13] - Smoke Test 品牌化更名與產物回傳 (Result Handback)
+## [2026-04-14] - CI-Integration 結構化遷移與路徑防呆優化 (Deployment Optimization)
+### Added (新增)
+- **CI 專屬目錄化**：建立 `ci-integration/build_server/` 資料夾，將 Build Server 側的 Orchestration 腳本與編譯範本集中管理。
+- **Bash 路徑防呆機制 (SCRIPT_DIR)**：在所有 CI 腳本（`releasebuild_v2.bash`）中導入 `SCRIPT_DIR` 自動定位邏輯，解決相對路徑對 PWD 的依賴，支援跨目錄呼叫。
+- **混合部署指引**：在 `README.md` 中新增架構章節，明確區分 Build Server 與 Test Server 的腳本分工。
+
+### Changed (變更)
+- **腳本遷移**：遷移 `releasebuild.bash` (V1/V2) 及 `auto_daily/release_*` 腳本至新目錄，保持根目錄純淨，僅留測試核心。
+- **Artifacts 管理**：優化 `LOCAL_ARTIFACT_DIR` 定位邏輯，確保建置產物穩定的產出於腳本鄰近目錄。
+
 ### Added (新增)
 - **產物回傳 (Handback) 閉環**：測試結束後自動將報告同步回 Image Server 的版本目錄 (`test_reports/`)。
 - **動態報表命名**：報表檔名現在包含 Model, Version 與 Variant (例如 `T70_smoke_test_report_02.02.01_user_*.html`)。

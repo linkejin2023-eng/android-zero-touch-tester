@@ -88,11 +88,29 @@ python3 main.py --flash /path/to/fastboot.zip --sku china
 # 情境 C: 僅繞過 OOBE (不燒錄，僅執行 AOA 盲打與 ADB 授權)
 python3 main.py --oobe --sku china --skip-tests
 
-# 情境 D: 標準測試 (裝置已在 Home Screen 且開啟 ADB)
-python3 main.py
-```
+---
 
-### 3. SSH 遠程觸發 (CI/CD 專用)
+## CI/CD 整合結構 (Integration Architecture)
+
+本專案實作了 **Build Server -> Test Server** 的閉環自動化流程，腳本依據執行環境分類如下：
+
+### 1. Build Server 側 (`ci-integration/build_server/`)
+存放於該目錄下的腳本負責調度編譯流程與觸發遠端測試：
+- **`releasebuild_v2.bash`**: CI 核心主控腳本，負責修改版本號、啟動編譯腳本、上傳 `build_info.json` 並透過 SSH 觸發測試。
+- **`auto_release_*.bash`**: Release 版本編譯模板。
+- **`auto_daily_*.bash`**: Daily 版本編譯模板。
+
+> [!TIP]
+> **防呆機制**：上述腳本均已導入 `SCRIPT_DIR` 自動定位邏輯，支援從任何工作路徑執行（例如 `bash ci-integration/build_server/releasebuild_v2.bash`），會自動尋找鄰近模板並產出 Artifacts。
+
+### 2. Test Server 側 (專案根目錄)
+負責接收指令並執行實際的硬體燒錄與功能驗證：
+- **`trigger_job.py`**: **測試接收入口**，由 Build Server 透過 SSH 呼叫。
+- **`main.py`**: 測試框架核心，由 `trigger_job.py` 調度執行。
+
+---
+
+### 3. SSH 遠程觸發 (Test Server 受理端)
 針對 Jenkins 或外部主機主動觸發測試，使用 `trigger_job.py` 進入點：
 ```bash
 python3 trigger_job.py --build 02.01.06 --type user --source release --remote-path /path/to/fastboot.zip

@@ -23,15 +23,18 @@ REMOTE_TEST_USER="franck_lin"   # Test Server User
 # [SoT 參數] 定義 Image Server 上的路徑根目錄
 REMOTE_RELEASE_ROOT="/media/share/thorpe/Android_15/Release_pega"
 
+# [環境參數] 定義工具路徑
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # [環境參數] 定義測試機與本地 Server 的工作目錄
 REMOTE_TEST_DIR="/home/franck_lin/auto_test"
 LOCAL_BIN_DIR="/home/server/bin"
-LOCAL_ARTIFACT_DIR="A15_artifact"
+LOCAL_ARTIFACT_DIR="$SCRIPT_DIR/A15_artifact"
 SCM_BUILD_DIR="/home/server/thorpe_dailybuild_A15/shell-script"
 
 # [模板參數] 定義原始編譯腳本名稱 (SCM 提供)
-TEMPLATE_USERDEBUG="auto_release_build_A15.bash"
-TEMPLATE_USER="auto_release_userbuild_A15.bash"
+TEMPLATE_USERDEBUG="$SCRIPT_DIR/auto_release_build_A15.bash"
+TEMPLATE_USER="$SCRIPT_DIR/auto_release_userbuild_A15.bash"
 
 # --- 功能函數：同步上傳 Build Info ---
 upload_json_to_server () {
@@ -74,11 +77,11 @@ trigger_remote_test () {
 # =================================================================
 
 # 1. 準備編譯腳本 (使用變數化的模板名稱)
-sed "s/$OLD_VERSION/$VERSION/g" $TEMPLATE_USERDEBUG > auto_release_build_A15_v2.bash
-sed -i "s/2.2.1/2.2.2/g" auto_release_build_A15_v2.bash
+sed "s/$OLD_VERSION/$VERSION/g" $TEMPLATE_USERDEBUG > "$SCRIPT_DIR/auto_release_build_A15_v2.bash"
+sed -i "s/2.2.1/2.2.2/g" "$SCRIPT_DIR/auto_release_build_A15_v2.bash"
 
-sed "s/$OLD_VERSION/$VERSION/g" $TEMPLATE_USER > auto_release_userbuild_A15_v2.bash
-sed -i "s/2.2.1/2.2.2/g" auto_release_userbuild_A15_v2.bash
+sed "s/$OLD_VERSION/$VERSION/g" $TEMPLATE_USER > "$SCRIPT_DIR/auto_release_userbuild_A15_v2.bash"
+sed -i "s/2.2.1/2.2.2/g" "$SCRIPT_DIR/auto_release_userbuild_A15_v2.bash"
 
 # 2. 執行 Userdebug 編譯
 if [ "$DRY_RUN" = true ]; then
@@ -87,7 +90,7 @@ if [ "$DRY_RUN" = true ]; then
 else
     echo "[V1-ORIGIN] Starting Userdebug build..."
     rm -rf $LOCAL_ARTIFACT_DIR/artifact/
-    bash auto_release_build_A15_v2.bash
+    bash "$SCRIPT_DIR/auto_release_build_A15_v2.bash"
     mv $SCM_BUILD_DIR/artifact $LOCAL_ARTIFACT_DIR/
 fi
 
@@ -101,7 +104,7 @@ if [ "$DRY_RUN" = true ]; then
     sleep 2
 else
     echo "[V1-ORIGIN] Starting User build..."
-    bash auto_release_userbuild_A15_v2.bash
+    bash "$SCRIPT_DIR/auto_release_userbuild_A15_v2.bash"
 fi
 
 # 5. [V2 插入] User 完工 -> 上傳 JSON -> 觸發測試
