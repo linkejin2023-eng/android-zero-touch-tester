@@ -215,12 +215,11 @@ class HTMLReportGenerator:
   .stat-card.fail .stat-value { color: var(--red); } .stat-card.error .stat-value { color: var(--pink); } .stat-card.skip .stat-value { color: var(--amber); }
 
   /* Device Info */
-  .device-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 36px; }
-  .device-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 24px; }
-  .device-panel h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--accent); margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
-  .info-row { display: flex; padding: 5px 0; font-size: 13px; gap: 8px; }
-  .info-label { color: var(--text-dim); min-width: 110px; flex-shrink: 0; }
-  .info-value { color: var(--text); font-family: var(--mono); font-size: 12px; word-break: break-all; }
+  .info-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px 32px; }
+  .info-row { display: flex; padding: 4px 0; font-size: 13px; gap: 12px; border-bottom: 1px solid rgba(51,56,72,.3); }
+  .info-row:last-child { border-bottom: none; }
+  .info-label { color: var(--text-dim); min-width: 120px; flex-shrink: 0; font-weight: 500; }
+  .info-value { color: var(--text); font-family: var(--mono); font-size: 11.5px; word-break: break-all; }
 
   /* Subsystem Summary */
   .section-title { font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text-dim); margin-bottom: 16px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
@@ -345,9 +344,9 @@ class HTMLReportGenerator:
     </div>
   </div>
 
-  <div class="device-grid animate-in d2">
-    <div class="device-panel">
-      <h3>Device Information</h3>
+  <div class="device-panel animate-in d2" style="margin-bottom: 36px;">
+    <h3>Device Information & Diagnostics</h3>
+    <div class="info-grid">
       {% for key, val in summary.device_info.items() %}
       <div class="info-row"><span class="info-label">{{ key }}</span><span class="info-value">{{ val }}</span></div>
       {% endfor %}

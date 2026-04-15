@@ -39,3 +39,8 @@ backup_image/
 
 # Unfinished / Temp Flash Work
 temp_extracted/
+*_tmp.json
+
+# Test workspaces and transient scripts
+workspaces/
+scripts/

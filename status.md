@@ -1,45 +1,45 @@
 # 專案當前狀態 (Project Status)
 
 ## 最後更新
-2026-04-14 14:40
+2026-04-15 12:05
 
 ## 專案進度概覽 (Overall Progress)
 - **核心框架 (Core Framework)**: 100% (完結)
 - **硬體驗證 (Hardware Verification)**: 100% (完結)
-- **CI/CD 閉環整合 (CI/CD Closed-loop)**: 100% (完結)
-- **部署與維護 (Deployment & Maintenance)**: 100% (完結)
+- **CI/CD 整合 (CI/CD Integration)**: 98% (完結)
+- **維護與診斷 (Diagnostic & Maintenance)**: 100% (完結)
 
 ---
 
 ## 執行紀錄與成果 (Milestones)
 
-### 第一階段至第六階段：核心、演算法、資料驅動與穩定化
+### 第一階段至第八階段：核心架構至部署分離
 **[狀態：已完結]**
-- 實作 100% 數據驅動與解耦架構。
-- 具備高強韌度之感測器與連線驗證算法。
-- 完成儀表板化專業 HTML 報表引擎。
+- 實現 100% 數據驅動與跨伺服器腳本分離。
+- 完成 SSH 觸發式推播引擎與自動化 Workspace 管理。
+- 已建立完善的 README 與 CHANGELOG 維護體系。
 
-### 第七階段：持續整合與自動監控 (CI & Automated Monitoring) 
+### 第九階段：工業級精進與診斷強化 (Industrial Refinement)
 **[狀態：已完結]**
-- [x] **SSH 觸發式推播引擎 (SSH Push Trigger)**: 取代舊有輪詢 (Polling) 模式，實現編譯完工立即啟動測試。
-- [x] **自動化 Workspace 管理**: 支援動態目錄空間分配與版本追蹤。
-- [x] **產物自動回傳 (Result Handback)**: 測試完成後自動將產出物同步回 Image Server。
-
-### 第八階段：架構優化與部署分離 (Architecture Optimization)
-**[狀態：已完結]**
-- [x] **跨伺服器腳本分離**: 建立 `ci-integration/build_server/` 分離 Build 與 Test Server 的代碼職責。
-- [x] **Bash 路徑防呆鎖定**: 透過 `SCRIPT_DIR` 實現 PWD 獨立執行，極致優化 CI Server 的執行靈活性。
-- [x] **文檔模組化更新**: 重新定義 README 與文檔，支援多角色（SCM, QA, Automation）協作。
+- [ ] **#16 Metadata 自動化同步 (Auto-Discovery)**: 研發從 Codebase 或 Build Log 自動提取 FW 預期值的工具，消除 SCM 人工維護成本。 (目前僅完成報表診斷背景顯示)
+- [x] **#17 Userdebug 下的 OOBE Bypass 修復**: 已解決 (AOA Qualcomm VID/PID 支援)。
+- [x] **#18 報表資訊擴充 (Informational Audit)**: 已完成 (兩欄式網格診斷區)。
+- [x] **#19 閉環郵件通知 (End-to-End Notification)**: 已整合至 `dailybuild_v2.bash`。
 
 ---
 
 ## 待擴展清單 (Next Deliverables)
 
 * [ ] **#13 磁碟與資源自動釋放 (Resource GC)**: 實作 Test Server 舊版 Image 的自動清理機制。
-* [ ] **#14 即時通知系統整合 (Messaging)**: 串接特定通訊軟體 (如 Slack/Teams) 發送測試摘要。
 * [ ] **#15 壓力測試模組 (Stress Test Module)**: 擴充 Reboot / Suspend 壓力循環腳本。
 
 ---
 
+## 預期挑戰與備註
+- **OOBE Timeout**: 目前 `lsusb` 可見但程式不可見，高度懷疑是 AOA (Android Accessory Mode) 在 Userdebug 版的 VID/PID 識別與 User 版有差異。
+- **Auto-Discovery**: 需要釐清所有 FW Version 在原始碼中的「單一真相來源 (SSOT)」。
+
+---
+
 ## 專案結案總結 (Project Summary)
-本專案已成功從「手工視力測試」進化為「工業級自動化 CI/CD 測試平台」。具備高移植性、高穩定性與「防呆」執行能力。
+本專案已成功從「手工視力測試」進化為「工業級自動化 CI/CD 測試平台」。目前正向「全無人值守 (Zero-touch)」且「高診斷性」的目標邁進。

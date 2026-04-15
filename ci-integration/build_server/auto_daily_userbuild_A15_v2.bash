@@ -121,10 +121,10 @@ copy_image
 upload_image
 mail_title=[Thorpe_A15][daily_build_${builtdate}][$branch][$version][GMS]
 
-if [ -e ${directory}/shell-script/artifact/${zipfile}/fastboot.zip ];then
-	echo -e $success_content | mutt -s $mail_title -- $members
-else
-    echo -e $fail_content | mutt -a ${LOGFILE} -s $mail_title -- $members
-fi
+# if [ -e ${directory}/shell-script/artifact/${zipfile}/fastboot.zip ];then
+# 	echo -e $success_content | mutt -s $mail_title -- $members
+# else
+#     echo -e $fail_content | mutt -a ${LOGFILE} -s $mail_title -- $members
+# fi
 #auto_tag
 exit 0

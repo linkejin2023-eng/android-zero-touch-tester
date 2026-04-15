@@ -4,6 +4,7 @@ except (ImportError, ValueError):
     from aoa_driver import AOADriver, KB_REPORT_DESC, CONSUMER_REPORT_DESC
 import time
 import logging
+import subprocess
 
 # HID Keycodes (partial list)
 KEY_NONE = 0x00
@@ -83,6 +84,24 @@ class OOBEBypass:
     def enable_adb_trimble(self, sku="gms"):
         """Automates the full ADB enablement sequence including re-enumeration handling."""
         logging.info(f"Starting ADB Enablement sequence (Trimble T70, SKU={sku})...")
+        
+        # [Optimization] For userdebug/authorized devices: Skip HID sequence if ADB is already ready
+        def is_adb_ready_now():
+            try:
+                out = subprocess.check_output(["adb", "devices"]).decode()
+                return "\tdevice" in out
+            except:
+                return False
+
+        if is_adb_ready_now():
+            logging.info("ADB already ready. Forcing 'Developer Options' enabled and skipping HID clicks.")
+            try:
+                subprocess.run(["adb", "shell", "settings", "put", "global", "development_settings_enabled", "1"], capture_output=True)
+                subprocess.run(["adb", "shell", "settings", "put", "global", "adb_enabled", "1"], capture_output=True)
+                logging.info("Developer Options forced ON via ADB command.")
+            except:
+                pass
+            return # Skip the entire HID sequence!
         
         # We start exactly from where the recorder left off (assuming Home Screen)
         hybrid_seq = [
@@ -169,7 +188,15 @@ class OOBEBypass:
                 # Try a few times in case the dialog is slow, but stop if authorized
                 for attempt in range(3):
                     if is_adb_authorized():
-                        logging.info("ADB already authorized! Skipping further HID inputs.")
+                        logging.info("ADB recognized. Forcing 'Developer Options' menu enabled via ADB...")
+                        try:
+                            # 1. 開啟開發人員選項選單
+                            subprocess.run(["adb", "shell", "settings", "put", "global", "development_settings_enabled", "1"], capture_output=True)
+                            # 2. 確保 ADB 偵錯是開啟的 (雖然通常已開)
+                            subprocess.run(["adb", "shell", "settings", "put", "global", "adb_enabled", "1"], capture_output=True)
+                            logging.info("Developer Options & ADB menu forced ON.")
+                        except Exception as ex:
+                            logging.warning(f"Failed to force settings via ADB: {ex}")
                         break
                         
                     logging.info(f"Authorization attempt {attempt + 1}...")

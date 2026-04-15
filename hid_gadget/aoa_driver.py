@@ -20,7 +20,8 @@ AOA_PID_ACC_ADB = 0x2D01
 
 # Trimble T70 specific IDs
 TRIMBLE_VID = 0x099e
-TRIMBLE_PIDS = [0x02b1, 0x02b5] # 02b1: Standard/OOBE, 02b5: ADB Enabled
+QUALCOMM_VID = 0x05c6
+TRIMBLE_PIDS = [0x02b1, 0x02b5, 0x901d] # 02b1: Standard/OOBE, 02b5: ADB, 901d: Userdebug/Diag
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -56,10 +57,14 @@ class AOADriver:
             # Common Android VIDs: Google (0x18d1), Samsung (0x04e8), Trimble (0x099e), etc.
             # We can search for devices with USB_CLASS_COMM (0x02) or other specific descriptors
             # For now, we rely on the specific VID/PID provided by user or common ones
-            vids = [0x18D1, 0x099E, 0x04E8, 0x0BB4, 0x22B8, 0x1949]
+            vids = [0x18D1, 0x099E, 0x05C6, 0x04E8, 0x0BB4, 0x22B8, 0x1949]
             for v in vids:
                 self.device = usb.core.find(idVendor=v)
                 if self.device:
+                    # 如果是 Qualcomm VID，額外確認 PID 是否在 Trimble 範疇內
+                    if v == QUALCOMM_VID and self.device.idProduct not in TRIMBLE_PIDS:
+                        self.device = None
+                        continue
                     break
         
         if not self.device:

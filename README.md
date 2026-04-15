@@ -124,14 +124,16 @@ python3 trigger_job.py --build 02.01.06 --type user --source release --remote-pa
 ---
 
 ### 4. 參數說明 (main.py)
-- `--flash <path>`: 指定燒錄包路徑，支援自動解壓縮。
-- `--oobe`: 啟動 AOA HID 盲打流程，自動解除 OOBE 並開啟 ADB。
-- `--sku <gms|china>`: 指定產品 SKU（預設為 `gms`）。會切換不同的 OOBE 盲打序列與 ADB 授權路徑。
-- `--skip-tests`: 僅執行燒錄與 OOBE 解除，完成後立即退出，不執行功能測試。
-- `--config-dir <path>`: 指定配置目錄 (如 Workspace)，優先讀取該目錄下的 `build_info.json`。
-- `--report-dir <path>`: 指定 HTML 報表輸出目錄。
-- `--build <version>`: 指定編譯版本（用於報表檔名與標題）。
-- `--type <user|userdebug>`: 指定編譯類型（用於報表檔名與標題）。
+- `--flash <path>`: 指定燒錄包路徑，支援自動解壓縮（自動銜接 `--oobe`）。
+- `--oobe`: **全自動流程**：啟動 OOBE 盲打流程並在完成後接著跑測試。
+- `--oobe-only`: **僅執行整備**：跑完 OOBE 盲打與 ADB 授權後立即停止（適用於手動 Debug）。
+- `--sku <gms|china>`: 指定產品 SKU（預設為 `gms`）。會切換不同的 OOBE 盲打序列。
+- `--skip-tests`: 僅執行燒錄與 OOBE 解除，不執行功能測試。
+- `--only-tests`: 略過所有整備流程，直接在現有桌面執行測項。
+- `--config-dir <path>`: 指定配置目錄，優先讀取該目錄下的 `build_info.json`。
+- `--report-dir <path>`: 指定 HTML 報表輸出目錄 (預設為 `reports/`)。
+- `--build <version>`: 指定編譯版本（用於報表命名）。**[手動測試可省略，自動從機台偵測]**
+- `--type <user|userdebug>`: 指定編譯類型。**[手動測試可省略，自動從機台偵測]**
 
 ### 5. 查看報告
 - **主動執行**：報告產生成於 `reports/`。

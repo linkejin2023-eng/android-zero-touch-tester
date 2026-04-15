@@ -14,16 +14,17 @@ from framework.flash_manager import FlashManager
 def main():
     parser = argparse.ArgumentParser(description="Android Sanity Test Automation Framework")
     parser.add_argument("--flash", type=str, help="Path to firmware ZIP to flash before testing")
-    parser.add_argument("--oobe", action="store_true", help="Run only OOBE bypass and ADB enablement (manual debug)")
+    parser.add_argument("--oobe", action="store_true", help="Bypass OOBE and then proceed to full tests")
+    parser.add_argument("--oobe-only", action="store_true", help="Run only OOBE bypass and ADB enablement, then stop (Manual debug)")
     parser.add_argument("--sku", type=str, choices=["gms", "china"], default="gms", help="Product SKU type for OOBE sequence (default: gms)")
-    parser.add_argument("--skip-tests", action="store_true", help="Only flash/OOBE, skip tests")
+    parser.add_argument("--skip-tests", action="store_true", help="Abort after Flash/OOBE, do not run test cases")
     parser.add_argument("--only-tests", action="store_true", help="Skip flash/OOBE/Provisioning, run tests directly on established device")
     parser.add_argument("--no-wipe", action="store_true", help="Skip userdata wipe during flashing (simulated OTA)")
     parser.add_argument("--factory-reset", action="store_true", help="Trigger Factory Reset via HID sequence (Expert only)")
     parser.add_argument("--config-dir", type=str, help="Directory to load build_info.json and other configs (Workspace path)")
-    parser.add_argument("--report-dir", type=str, default="reports", help="Directory to save the HTML report")
-    parser.add_argument("--build", type=str, default="Unknown", help="Build version number for report naming")
-    parser.add_argument("--type", type=str, default="user", choices=["user", "userdebug"], help="Build variant for report naming")
+    parser.add_argument("--report-dir", type=str, default="reports", help="Directory to save the HTML report (default: reports)")
+    parser.add_argument("--build", type=str, default="Unknown", help="Build version number for report naming [Auto-detected if omitted]")
+    parser.add_argument("--type", type=str, default="user", choices=["user", "userdebug"], help="Build variant for report naming [Auto-detected if omitted]")
     args = parser.parse_args()
 
     # --- Phase -1: Emergency Factory Reset (Expert only) ---
@@ -54,7 +55,7 @@ def main():
             sys.exit(1)
         args.oobe = True # Force OOBE bypass after flash
 
-    if args.oobe:
+    if args.oobe or args.oobe_only:
         # After flashing or manual request, wait for device to boot into OOBE and bypass it
         logging.info("--- Stage 1: HID/AOA OOBE Bypass (No ADB required) ---")
         logging.info(f"Entering HID synchronization loop (SKU: {args.sku})...")
@@ -68,8 +69,8 @@ def main():
             logging.error("OOBE Bypass failed or timed out.")
             sys.exit(1)
 
-        if args.skip_tests:
-            logging.info("OOBE Bypass successful. Tests skipped as per --skip-tests flag.")
+        if args.oobe_only or args.skip_tests:
+            logging.info("OOBE/ADB Setup successful. Stopping as requested.")
             return
 
     # --- Phase 1: Environment Readiness ---
@@ -101,7 +102,12 @@ def main():
     
     # Collect Device Info
     sku_raw = get_system_property("ro.boot.sku")
+    build_type_raw = get_system_property("ro.build.type") # 自動偵測 user/userdebug
     
+    # 智慧校正：如果偵測到的型態與參數不符，以機台實際型態為準
+    if build_type_raw in ["user", "userdebug"]:
+        args.type = build_type_raw
+
     # Load System Configurations from configs/
     import json
     import os
@@ -135,24 +141,57 @@ def main():
     sku_map = build_info.get("sku_map", {})
     sku_label = sku_map.get(sku_raw, sku_raw)
     
+    # --- Diagnostic Info Collection ---
+    _, selinux_status = run_adb_cmd("getenforce")
+    selinux_status = selinux_status.strip()
+    
+    # 區分「當前權限」與「系統檔案」
+    _, id_out = run_adb_cmd("id")
+    is_active_root = "uid=0(root)" in id_out
+    
+    _, su_check = run_adb_cmd("which su")
+    has_su = "not found" not in su_check.lower() and su_check.strip() != ""
+    
+    _, kernel_ver = run_adb_cmd("uname -r -v")
+    
     device_info = {
         "Model": get_system_property("ro.product.model"),
         "Brand": get_system_property("ro.product.brand"),
+        "Variant": args.type,
         "Android Version": get_system_property("ro.build.version.release"),
         "Build Number": get_system_property("ro.build.display.id"),
+        "Fingerprint": get_system_property("ro.build.fingerprint"),
+        "Security Patch": get_system_property("ro.build.version.security_patch"),
+        "GMS Version": get_system_property("ro.com.google.gmsversion"),
+        "Kernel": kernel_ver.strip(),
         "Serial": get_system_property("ro.serialno"),
-        "SKU ID": f"{sku_raw} ({sku_label})" if sku_label != sku_raw else sku_raw
+        "SKU ID": f"{sku_raw} ({sku_label})" if sku_label != sku_raw else sku_raw,
+        "OEM Lock": "Locked" if get_system_property("ro.boot.flash.locked") == "1" else "Unlocked",
+        "SELinux": selinux_status,
+        "ADB Root": "Active (root)" if is_active_root else "Inactive (shell)",
+        "SU Binary": "Present" if has_su else "Not Found"
     }
     reporter.set_device_info(device_info)
     
     logging.info(f"Target Device: {device_info['Brand']} {device_info['Model']}")
     
+    # --- Smart Build ID Normalization (For accurate report naming) ---
+    final_build_id = args.build
+    if final_build_id == "Unknown":
+        raw_display_id = device_info.get("Build Number", "Unknown")
+        parts = raw_display_id.split()
+        if len(parts) > 1:
+            # Skip signature suffix if present
+            final_build_id = parts[-2] if "keys" in parts[-1] else parts[-1]
+        else:
+            final_build_id = raw_display_id
+
     # Initialize UI Automator
     try:
         ui = UIHelper()
     except Exception as e:
         reporter.add_result("System", "UIAutomator Initialization", False, f"Failed to start uiautomator2 agent: {e}")
-        reporter.finalize(time.time() - start_time)
+        reporter.finalize(time.time() - start_time, version=final_build_id, variant=args.type)
         sys.exit(1)
         
     reporter.add_result("System", "ADB & UIAutomator Connection", True, "Successfully connected to device and injected test agents.")
@@ -184,18 +223,27 @@ def main():
         is_debuggable = get_system_property("ro.debuggable") == "1"
         _, selinux_status = run_adb_cmd("getenforce")
         selinux_status = selinux_status.strip()
-        _, su_check = run_adb_cmd("which su")
         
-        is_rooted = "not found" not in su_check.lower() and su_check.strip() != ""
-        
-        if is_debuggable or is_rooted or selinux_status.lower() != "enforcing":
-            reporter.add_result("System", "Security Preflight", False, 
-                                f"Insecure Environment! ro.debuggable={is_debuggable}, SELinux={selinux_status}, Rooted={is_rooted}", 
-                                status_override="ERROR")
-            logging.error(f"Security Check Failed: Debuggable={is_debuggable}, SELinux={selinux_status}, Rooted={is_rooted}")
-            logging.error("Aborting tests due to compromised runtime environment (False-Positive Risk).")
-            reporter.finalize(time.time() - start_time)
-            sys.exit(1)
+        # 安全預檢：任何一項不符即視為 Insecure
+        if is_debuggable or is_active_root or has_su or selinux_status.lower() != "enforcing":
+            status_msg = f"Security Preflight: Debuggable={is_debuggable}, SELinux={selinux_status}, ADB_Root={is_active_root}, SU={has_su}"
+            
+            # 只有開發版 (userdebug) 允許繞過。
+            # 如果是 User build，即便偵測到後門也必須攔截，因為這代表機台狀態不正確。
+            if args.type == "userdebug":
+                logging.warning(f"Insecure Environment detected (Debuggable or SELinux), but proceeding as requested.")
+                reporter.add_result("System", "Security Preflight", True, 
+                                    f"WARNING: {status_msg}", 
+                                    status_override="SKIP")
+            else:
+                reporter.add_result("System", "Security Preflight", False, 
+                                    f"ERROR: {status_msg}", 
+                                    status_override="ERROR")
+                logging.error(f"Security Check Failed: {status_msg}")
+                logging.error("CRITICAL: Backdoor or Insecure configuration detected on a USER build!")
+                logging.error("Aborting tests to ensure validation environment matches release standards.")
+                reporter.finalize(time.time() - start_time, version=final_build_id, variant=args.type)
+                sys.exit(1)
         else:
             reporter.add_result("System", "Security Preflight", True, f"Environment OK (SELinux: {selinux_status})")
             logging.info("Security Preflight Passed.")
@@ -306,7 +354,23 @@ def main():
 
     # --- Final Report Generation (After all lifecycle phases) ---
     duration = time.time() - start_time
-    report_path = reporter.finalize(duration, version=args.build, variant=args.type)
+    
+    # 智慧命名：如果編號為 Unknown，自動從機台資訊中提取
+    final_build_id = args.build
+    if final_build_id == "Unknown":
+        # 嘗試從 ro.build.display.id 提取，避開末尾的 release-keys / test-keys
+        raw_display_id = device_info.get("Build Number", "Unknown")
+        parts = raw_display_id.split()
+        if len(parts) > 1:
+            # 檢查最後一項是否為簽章標籤 (例如 release-keys)
+            if "keys" in parts[-1] and len(parts) > 1:
+                final_build_id = parts[-2]
+            else:
+                final_build_id = parts[-1]
+        else:
+            final_build_id = raw_display_id
+
+    report_path = reporter.finalize(duration, version=final_build_id, variant=args.type)
     
     logging.info(f"--- Tests Completed in {duration:.1f}s ---")
     logging.info(f"Report location: {report_path}")

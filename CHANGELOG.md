@@ -2,6 +2,19 @@
 
 所有關於本專案的顯著變更將會記錄於此檔案中。
 
+## [2026-04-15] - 工業級診斷強化與 Userdebug 深度支援 (Industrialization & Userdebug)
+### Added (新增)
+- **Userdebug 全面優化**：修復 AOA 驅動 VID/PID (05c6:901d)，解決 Userdebug 機台 OOBE 超時問題。
+- **智慧型報表命名**：報表名稱現在會自動從及時 ID 中提取版本號，並聰明地避開 `release-keys` 等標籤。
+- **跨版本異步郵件通知**：整合 `dailybuild_v2.bash`，實現待所有並行測試任務（User/Userdebug）結束後，發送單一彙整報告郵件。
+- **深度硬體診斷**：報表頂部新增兩欄式診斷區，記錄 OEM Lock、SELinux、當前 Root 身分與 SKU 詳細資訊。
+- **後門偵測機制**：區分「ADB Root 身分」與「系統 su 檔案」，精準捕捉工廠後門開啟狀態。
+- **CLI 新選項**：新增 `--oobe-only`（純整備不測試）與 `--build/--type` 的自動偵測邏輯。
+
+### Changed (變更)
+- **安全預檢嚴格化**：針對 User build 恢復「零容忍」權限檢查，確保測試環境符合發布規範。
+- **快速通道 OOBE**：若偵測到 ADB 已獲授權（如 Userdebug），則跳過 HID 模擬點擊，執行速度提升約 40 秒。
+
 ## [2026-04-14] - CI-Integration 結構化遷移與路徑防呆優化 (Deployment Optimization)
 ### Added (新增)
 - **CI 專屬目錄化**：建立 `ci-integration/build_server/` 資料夾，將 Build Server 側的 Orchestration 腳本與編譯範本集中管理。
