@@ -15,9 +15,9 @@
 | **Phase 2: 進階功能自動化** | 完結 | **100%** | 相機 Intent、WiFi/BT連網、觸控模擬、NFC、GPS | 2026-03-06 |
 | **Phase 3: 使用者增強功能測試** | 完結 | **100%** | 藍牙掃描清單、相機 JPG 存檔驗證、手電筒控制 | 2026-03-10 |
 | **Phase 4: 深水區硬體與穩定性** | 完結 | **100%** | WWAN、音訊熵值分析、相機動態快門、OOBE Bypass、電源還原邏輯 | 2026-03-26 |
-| **Phase 5: 企業級派發與 CI/CD** | 暫停 | **60%** | Email 總結報告發送、失敗日誌 (Logcat) ZIP 打包 | 2026-03-13 |
+| **Phase 5: 企業級派發與 CI/CD** | 完結 | **100%** | Email 專業彙整報告、Fail-Safe 診斷機制、China SKU 整合 | 2026-04-16 |
 | **Feature: 自動化燒錄 (Flash) 模組** | 完結 | **100%** | 支援 ZIP 自動解壓、Fastboot 流程與燒錄後自動接續 OOBE | 2026-03-12 |
-| **Feature: 多 SKU (GMS/China) 支援** | 完結 | **100%** | 實作自適應 Branching 序列，支援 SIM/No-SIM 雙場景自動 OOBE Bypass | 2026-03-25 |
+| **Feature: 多 SKU (GMS/China) 支援** | 完結 | **100%** | 實作自適應 Branching 序列，支援 SIM/No-SIM 雙場景自動 OOBE Bypass | 2026-04-16 |
 | **Phase 6: 跨電腦部署與相容性** | 完結 | **100%** | 實作 Portable Python 3.11 部署方案、本地指令自動偵測與 venv 隔離 | 2026-03-18 |
 | **[T70] Phase 1: 核心架構與守門員規則** | 完結 | **100%** | Security Check、Config 控制、Baseline 核驗 | 2026-03-27 |
 | **[T70] Phase 2: 演算法與穩定度優化** | 完結 | **100%** | Sensor 熵值分析、GPS 弱訊號、視力報表翻新 | 2026-03-27 |
@@ -25,6 +25,7 @@
 | **[T70] Phase 3: 資料生命週期與收尾** | 完結 | **100%** | SKU Mapping、Legacy 清除、UserData 擦除 | 2026-04-02 |
 | **[T70] Phase 4: 資料驅動全自動驗證 (Data-Driven)** | 完結 | **100%** | JSON 屬性自適應、混合提取引擎 (shell/logcat/ui)、免寫 Code 新增韌體測項 | 2026-04-02 |
 | **[T70] Phase 5: 架構解耦與連線強韌化** | 完結 | **100%** | 執行 configs/ 目錄分離、WiFi/NFC/WWAN 強韌化、螢幕狀態自動還原 | 2026-04-02 |
+| **[T70] Phase 6: CI 通知工業化** | 完結 | **100%** | 模組化專業通知、環境假失敗豁免邏輯 (Honest Exit Code) | 2026-04-16 |
 
 ---
 
@@ -96,10 +97,12 @@ python3 main.py --oobe --sku china --skip-tests
 
 ### 1. Build Server 側 (`ci-integration/build_server/`)
 存放於該目錄下的腳本負責調度編譯流程與觸發遠端測試：
-- **`releasebuild_v2.bash`**: CI 核心主控腳本，負責修改版本號、啟動編譯腳本、上傳 `build_info.json` 並透過 SSH 觸發測試。
-- **`dailybuild_v2.bash`**: Daily 核心主控腳本，專為每日自動化編譯設計，透過「日期回傳機制」精準對接當次產出的 Image 路徑並觸發測試。
-- **`auto_release_*.bash`**: Release 版本編譯模板。
-- **`auto_daily_*.bash`**: Daily 版本編譯模板。
+- **`releasebuild_v2.bash`**: GMS Release 核心主控，負責修改版本號、觸發測試與發送精英級郵件。
+- **`dailybuild_v2.bash`**: GMS Daily 核心主控，具備動態日期回傳機制。
+- **`china_dailybuild_v2.bash`**: **[NEW]** China SKU Daily 主控，具備環境豁免與 NoGMS 通知特化。
+- **`china_releasebuild_v2.bash`**: **[NEW]** China SKU Release 主控，支援深度 UNC 目錄路徑 (release/) 轉義。
+- **`auto_release_*.bash`**: Release 版本編譯子腳本 (Worker)。
+- **`auto_daily_*.bash`**: Daily 版本編譯子腳本 (Worker)。
 
 > [!TIP]
 > **防呆機制**：上述腳本均已導入 `SCRIPT_DIR` 自動定位邏輯，支援從任何工作路徑執行（例如 `bash ci-integration/build_server/releasebuild_v2.bash`），會自動尋找鄰近模板並產出 Artifacts。

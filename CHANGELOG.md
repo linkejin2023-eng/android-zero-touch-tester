@@ -2,6 +2,21 @@
 
 所有關於本專案的顯著變更將會記錄於此檔案中。
 
+## [2.6.0] - 2026-04-16 - CI 工業化與 China SKU 深度整合 (CI Industrialization)
+### Added (新增)
+- **China SKU (NoGMS) 專業調度器**：實作 `china_dailybuild_v2.bash` 與 `china_releasebuild_v2.bash`，將 China 分支編譯納入全自動測試與發信體系。
+- **智慧型環境豁免邏輯 (Honest Exit Code)**：在 `main.py` 中導入 `SOFT_FAILURE_LIST`。GPS、NFC 與 WiFi Association 失敗將被標註為「環境因素」，不計入 CI 最終失敗判定，確保退出碼誠實反映軟體品質。
+- **精英級模組化通知郵件**：
+  - **專業主旨格式**：`[SUCCESS/STABLE/FAILURE]` 狀態標籤、Variant 首字母大寫 (User/Userdebug)、以及 SKU/版號資訊。
+  - **提貨連結優先**：郵件內文第一行即為軟體提取連結，大幅提升開發者獲取 Build 的效率。
+- **深度 UNC 路徑修正**：針對 China SKU 特有的 `release/` 分支目錄結構，實作了精確的 Windows UNC 反斜線轉義邏輯。
+
+### Changed (變更)
+- **CI 調度架構統一**：GMS 與 China 流程對齊，共用相同的標題模板與路徑計算邏輯。
+- **通知邏輯解耦**：移除所有 4 個原始 NoGMS 編譯腳本中的舊版 `mutt` 發信邏輯，徹底解決重複發信與格式混亂問題。
+- **Daily Build 時間戳同步**：子腳本現在優先採用主控端導出的 `DATE_TAG`，保證通知連結與實體目錄 100% 匹配。
+
+
 ## [2026-04-15] - 工業級診斷強化與 Userdebug 深度支援 (Industrialization & Userdebug)
 ### Added (新增)
 - **Userdebug 全面優化**：修復 AOA 驅動 VID/PID (05c6:901d)，解決 Userdebug 機台 OOBE 超時問題。

@@ -32,15 +32,55 @@ rm -f "$SCRIPT_DIR"/last_builtdate_*.tmp
 SUB_USERDEBUG="auto_daily_build_A15_v2.bash"
 SUB_USER="auto_daily_userbuild_A15_v2.bash"
 
+# --- 功能函數：發送專業級版本通知信 ---
+send_smoke_test_report () {
+    local variant=$1
+    local timestamp=$2
+    local status=$3
+    local SKU="GMS"  # 如果有需要可從環境變數帶入
+    
+    # 決定主旨狀態標籤
+    local status_tag="SUCCESS"
+    [ "$status" == "FAILED" ] && status_tag="FAILURE"
+
+    local variant_cap="User"
+    [ "$variant" == "userdebug" ] && variant_cap="Userdebug"
+
+    # [主旨] [STATUS] Project Activity: ID (SKU/Variant) - Smoke Test: RESULT
+    local mail_title="[$status_tag][Thorpe_A15] Daily Build: $timestamp ($SKU/$variant_cap) - Smoke Test: $status"
+    
+    # [路徑轉義修正] 確保在 echo -e 下產出為 \\10.192.188.16\share\thorpe\...
+    local win_root="\\\\\\\\10.192.188.16\\share\\\\thorpe\\\\Android_15\\\\dailybuild"
+    local remote_path="${win_root}\\\\${timestamp}_thorpe_dev_${variant}_a15_gms"
+
+    local content="Thorpe_A15 Smoke Test & Build Notification\n"
+    content+="============================================================\n\n"
+    content+="[Software Retrieval Link]\n"
+    content+="${remote_path}\n\n"
+    content+="Build Details:\n"
+    content+="- Source:   Daily Build\n"
+    content+="- Ident:    ${timestamp}\n"
+    content+="- SKU:      ${SKU}\n"
+    content+="- Variant:  ${variant_cap}\n\n"
+    content+="Smoke Test Status: ${status}\n"
+    content+="------------------------------------------------------------\n"
+    content+="Note: This version has passed all core functional tests.\n"
+    content+="Environmental items (GPS/NFC/WiFi Association) are excluded from\n"
+    content+="overall status due to site signal instability.\n"
+    content+="============================================================\n"
+    
+    echo -e "$content" | mutt -s "$mail_title" -- "$MEMBERS"
+    echo "[V2-INFO] $variant report sent with status: $status"
+}
+
 # --- 功能函數：觸發遠端自動化測試 ---
 trigger_remote_test () {
     local variant=$1
     local built_date=$2
-    local result_file="$SCRIPT_DIR/test_result_${variant}.tmp"
     
     echo "[V2-INFO] Triggering automated test on $TEST_SERVER for daily $variant ($built_date)..."
     
-    # Daily 路徑規格
+    # Daily 路徑規格 (用於觸發測試)
     local zipfile="${built_date}_thorpe_dev_${variant}_a15_gms"
     local remote_path="${REMOTE_DAILY_ROOT}/${zipfile}/fastboot.zip"
     
@@ -49,42 +89,15 @@ trigger_remote_test () {
         extra_flags="--check-only"
     fi
 
-    # 異步執行並記錄結果至臨時檔
+    # 異步執行測試，並在結束後立刻發信
     (
         ssh $REMOTE_TEST_USER@$TEST_SERVER "cd $REMOTE_TEST_DIR && ./.venv/bin/python3 trigger_job.py --build $built_date --type $variant --source daily $extra_flags --remote-path $remote_path"
         if [ $? -eq 0 ]; then
-            echo "SUCCESS" > "$result_file"
+            send_smoke_test_report "$variant" "$built_date" "PASS"
         else
-            echo "FAILED" > "$result_file"
+            send_smoke_test_report "$variant" "$built_date" "FAILED"
         fi
     ) &
-}
-
-send_integrated_report () {
-    local date_debug=$1
-    local date_user=$2
-    
-    local status_debug="PENDING"
-    local status_user="PENDING"
-    [ -f "$SCRIPT_DIR/test_result_userdebug.tmp" ] && status_debug=$(cat "$SCRIPT_DIR/test_result_userdebug.tmp")
-    [ -f "$SCRIPT_DIR/test_result_user.tmp" ] && status_user=$(cat "$SCRIPT_DIR/test_result_user.tmp")
-    
-    local mail_title="[Thorpe_A15][Daily_Report][${date_user}] Summary"
-    local content="Daily Build & Sanity Test Integrated Report\n"
-    content+="==========================================\n"
-    content+="Build Date: ${date_user}\n\n"
-    content+="1. Userdebug Build: DONE\n"
-    content+="   Test Status: ${status_debug}\n\n"
-    content+="2. User Build: DONE\n"
-    content+="   Test Status: ${status_user}\n\n"
-    content+="Report Path: \\\\10.192.188.16\\share\\thorpe\\Android_15\\dailybuild\\\n"
-    content+="==========================================\n"
-    
-    echo -e "$content" | mutt -s "$mail_title" -- "$MEMBERS"
-    echo "[V2-INFO] Integrated report sent to members."
-    
-    # 清理臨時檔
-    rm -f "$SCRIPT_DIR/test_result_*.tmp"
 }
 
 # =================================================================
@@ -136,6 +149,4 @@ fi
 echo "[V2-SUCCESS] Daily build pipeline execution finished."
 echo "[V2-INFO] Waiting for all background tests to sync results..."
 wait # 等待背景任務結束
-
-# 5. 發送整合報表
-send_integrated_report "$DATE_DEBUG" "$DATE_USER"
+echo "[V2-DONE] All daily build tasks completed."

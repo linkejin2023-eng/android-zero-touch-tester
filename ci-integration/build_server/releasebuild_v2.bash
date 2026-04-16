@@ -56,6 +56,50 @@ upload_json_to_server () {
     popd > /dev/null
 }
 
+# [通知參數]
+MEMBERS="Billy_Chen@pegatroncorp.com,Aaren_Bai@pegatroncorp.com,Nick_Chuang@pegatroncorp.com,Jason1_Pan@pegatroncorp.com,Terry_Tzeng@pegatroncorp.com,Jack2_Hsu@pegatroncorp.com,Franck_Lin@pegatroncorp.com,James8_Chen@pegatroncorp.com,Calvin_Yu@pegatroncorp.com,Smal_Lin@pegatroncorp.com,Frank1_Yen@pegatroncorp.com,Andy1_Hsu@pegatroncorp.com,Hongde_Liu@pegatroncorp.com,Allen2_Chang@pegatroncorp.com,PennyC_Chen@pegatroncorp.com,Gordon1_Yu@pegatroncorp.com,Liche_Wu@pegatroncorp.com,Denny_Yang@pegatroncorp.com,MingChung_Wu@pegatroncorp.com,Lisa_Hsu@pegatroncorp.com,Rasmus_Lai@pegatroncorp.com,Ryan6_Lin@pegatroncorp.com,Joann_Liu@pegatroncorp.com,Parker6_Chen@pegatroncorp.com,Allen_Lee@pegatroncorp.com,Mike_Yang@pegatroncorp.com,Jeff6_Lin@pegatroncorp.com,Qilin_Zhu@pegatroncorp.com,Parker_Chen@pegatroncorp.com"
+
+# --- 功能函數：發送專業級版本通知信 (Release 版) ---
+send_smoke_test_report () {
+    local variant=$1
+    local version=$2
+    local status=$3
+    local SKU="GMS"
+    
+    # 決定主旨狀態標籤：正式版成功使用 STABLE
+    local status_tag="STABLE"
+    [ "$status" == "FAILED" ] && status_tag="FAILURE"
+
+    local variant_cap="User"
+    [ "$variant" == "userdebug" ] && variant_cap="Userdebug"
+
+    # [主旨] [STATUS] Project Activity: ID (SKU/Variant) - Smoke Test: RESULT
+    local mail_title="[$status_tag][Thorpe_A15] Release: REL_$version ($SKU/$variant_cap) - Smoke Test: $status"
+    
+    # [路徑轉義修正] 確保在 echo -e 下產出為 \\10.192.188.16\share\thorpe\...
+    local win_root="\\\\\\\\10.192.188.16\\share\\\\thorpe\\\\Android_15\\\\Release_pega"
+    local remote_path="${win_root}\\\\REL_${version}\\\\${variant}"
+
+    local content="Thorpe_A15 Smoke Test & Build Notification\n"
+    content+="============================================================\n\n"
+    content+="[Software Retrieval Link]\n"
+    content+="${remote_path}\n\n"
+    content+="Build Details:\n"
+    content+="- Source:   Release Build\n"
+    content+="- Version:  REL_${version}\n"
+    content+="- SKU:      ${SKU}\n"
+    content+="- Variant:  ${variant_cap}\n\n"
+    content+="Smoke Test Status: ${status}\n"
+    content+="------------------------------------------------------------\n"
+    content+="Note: This build is marked as ${status_tag} based on automated smoke test results.\n"
+    content+="Environmental items (GPS/NFC/WiFi Association) are excluded from\n"
+    content+="overall status due to site signal instability.\n"
+    content+="============================================================\n"
+    
+    echo -e "$content" | mutt -s "$mail_title" -- "$MEMBERS"
+    echo "[V2-INFO] $variant Release report sent with status: $status"
+}
+
 # --- 功能函數：觸發遠端自動化測試 ---
 trigger_remote_test () {
     local variant=$1
@@ -69,7 +113,15 @@ trigger_remote_test () {
         extra_flags="--check-only"
     fi
 
-    (ssh $REMOTE_TEST_USER@$TEST_SERVER "cd $REMOTE_TEST_DIR && ./.venv/bin/python3 trigger_job.py --build $VERSION --type $variant --source release $extra_flags --remote-path $remote_path" || echo "[V2-WARN] Remote trigger for $variant failed, but continuing build pipeline...") &
+    # 異步執行測試，並在結束後立刻發信
+    (
+        ssh $REMOTE_TEST_USER@$TEST_SERVER "cd $REMOTE_TEST_DIR && ./.venv/bin/python3 trigger_job.py --build $VERSION --type $variant --source release $extra_flags --remote-path $remote_path"
+        if [ $? -eq 0 ]; then
+            send_smoke_test_report "$variant" "$VERSION" "PASS"
+        else
+            send_smoke_test_report "$variant" "$VERSION" "FAILED"
+        fi
+    ) &
 }
 
 # =================================================================
