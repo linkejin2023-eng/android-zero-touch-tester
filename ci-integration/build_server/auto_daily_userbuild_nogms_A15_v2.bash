@@ -2,7 +2,7 @@ export USER=$(whoami)
 directory="/mnt/data_1/server/thorpe_A15_dailybuild"
 branch="thorpe_dev"
 #branch="thorpe_dev_lcd_rotate"
-builtdate=`date +%Y%m%d%H%M`
+builtdate=${DATE_TAG:-`date +%Y%m%d%H%M`}
 members="Billy_Chen@pegatroncorp.com,Aaren_Bai@pegatroncorp.com,Nick_Chuang@pegatroncorp.com,Jason1_Pan@pegatroncorp.com,Terry_Tzeng@pegatroncorp.com,Jack2_Hsu@pegatroncorp.com,Franck_Lin@pegatroncorp.com,James8_Chen@pegatroncorp.com,Calvin_Yu@pegatroncorp.com,Smal_Lin@pegatroncorp.com,Frank1_Yen@pegatroncorp.com,Andy1_Hsu@pegatroncorp.com,Hongde_Liu@pegatroncorp.com,Allen2_Chang@pegatroncorp.com,PennyC_Chen@pegatroncorp.com,Gordon1_Yu@pegatroncorp.com,Liche_Wu@pegatroncorp.com,Denny_Yang@pegatroncorp.com,MingChung_Wu@pegatroncorp.com,Hikaru_Fukaya@pegatroncorp.com,Lisa_Hsu@pegatroncorp.com,Rasmus_Lai@pegatroncorp.com,Ryan6_Lin@pegatroncorp.com,Joann_Liu@pegatroncorp.com,Parker6_Chen@pegatroncorp.com,Allen_Lee@pegatroncorp.com,Mike_Yang@pegatroncorp.com,Jeff6_Lin@pegatroncorp.com,Qilin_Zhu@pegatroncorp.com,Parker_Chen@pegatroncorp.com"
 #members="Nick_Chuang@pegatroncorp.com"
 success_content="Done building targets. \(Image path: \\\\\\\10.192.188.16\\\\\\share\\\\\\thorpe\)"
@@ -118,10 +118,11 @@ copy_image
 upload_image
 mail_title=[Thorpe_A15][daily_build_${builtdate}][$branch][$version][NOGMS]
 
-if [ -e ${directory}/shell-script/artifact/${zipfile}/fastboot.zip ];then
-	echo -e $success_content | mutt -s $mail_title -- $members
-else
-    echo -e $fail_content | mutt -a ${LOGFILE} -s $mail_title -- $members
-fi
+# [V2-CLEANUP] Old notification moved to china_dailybuild_v2.bash
+# if [ -e ${directory}/shell-script/artifact/${zipfile}/fastboot.zip ];then
+# 	echo -e $success_content | mutt -s $mail_title -- $members
+# else
+#     echo -e $fail_content | mutt -a ${LOGFILE} -s $mail_title -- $members
+# fi
 #auto_tag
 exit 0

@@ -1,8 +1,8 @@
 export USER=$(whoami)
 directory="/mnt/data_1/server/thorpe_A15_dailybuild"
-branch="thorpe_dev"
+branch="T70-A15-2.1.0-CN"
 #branch="thorpe_dev_lcd_rotate"
-builtdate=`date +%Y%m%d%H%M`
+builtdate=${DATE_TAG:-`date +%Y%m%d%H%M`}
 members="Billy_Chen@pegatroncorp.com,Aaren_Bai@pegatroncorp.com,Nick_Chuang@pegatroncorp.com,Jason1_Pan@pegatroncorp.com,Terry_Tzeng@pegatroncorp.com,Jack2_Hsu@pegatroncorp.com,Franck_Lin@pegatroncorp.com,James8_Chen@pegatroncorp.com,Calvin_Yu@pegatroncorp.com,Smal_Lin@pegatroncorp.com,Frank1_Yen@pegatroncorp.com,Andy1_Hsu@pegatroncorp.com,Hongde_Liu@pegatroncorp.com,Allen2_Chang@pegatroncorp.com,PennyC_Chen@pegatroncorp.com,Gordon1_Yu@pegatroncorp.com,Liche_Wu@pegatroncorp.com,Denny_Yang@pegatroncorp.com,MingChung_Wu@pegatroncorp.com,Hikaru_Fukaya@pegatroncorp.com,Lisa_Hsu@pegatroncorp.com,Rasmus_Lai@pegatroncorp.com,Ryan6_Lin@pegatroncorp.com,Joann_Liu@pegatroncorp.com,Parker6_Chen@pegatroncorp.com,Allen_Lee@pegatroncorp.com,Mike_Yang@pegatroncorp.com,Jeff6_Lin@pegatroncorp.com,Qilin_Zhu@pegatroncorp.com,Parker_Chen@pegatroncorp.com"
 #members="Nick_Chuang@pegatroncorp.com"
 success_content="Done building targets. \(Image path: \\\\\\\10.192.188.16\\\\\\share\\\\\\thorpe\)"
@@ -35,9 +35,9 @@ chk_error () {
 sync_code () {
     cd ${directory}/.repo/manifests; git reset --hard; git clean -fd; git pull 2>&1 | tee pull.log; cd -
     #cd ${directory}/buildscripts; git reset --hard; git clean -fd;
-    cd ${directory};repo forall -c 'pwd;git pull pandora thorpe_dev:thorpe_dev' 2>&1 | tee pull.log; cd -
+    cd ${directory};repo forall -c 'pwd;git pull pandora release/T70-A15-2.1.0-CN:release/T70-A15-2.1.0-CN' 2>&1 | tee pull.log; cd -
 	cd ${directory}/QCM6490_apps_qssi15/LINUX/android/.repo/manifests;git reset --hard; git clean -fd; git pull 2>&1 | tee pull.log; cd -
-	cd ${directory}/QCM6490_apps_qssi15/LINUX/android;repo forall -c 'pwd;git pull pandora thorpe_dev:thorpe_dev' 2>&1 | tee pull.log; cd -
+	cd ${directory}/QCM6490_apps_qssi15/LINUX/android;repo forall -c 'pwd;git pull pandora release/T70-A15-2.1.0-CN:release/T70-A15-2.1.0-CN' 2>&1 | tee pull.log; cd -
 }
 
 clean_code () {
@@ -48,9 +48,9 @@ clean_code () {
 build_code () {
 #    cp -r /home/server/bin/build_A15.bash ${directory}/shell-script
 	cd ${directory}/shell-script
-    bash build_all_A15.bash thorpe $version -s 2>&1 | tee buildlog_user.txt; chk_error $? "Execute build_all.sh failed"
+    bash build_all_A15.bash thorpe $version -s 2>&1 | tee buildlog.txt; chk_error $? "Execute build_all.sh failed"
 #     bash build_all_A15.bash thorpe $version; chk_error $? "Execute build_all.sh failed"
-    cp -r ${directory}/shell-script/buildlog_user.txt /home/server/bin
+    cp -r ${directory}/shell-script/buildlog.txt /home/server/bin
 }
 
 copy_image () {
@@ -58,8 +58,8 @@ copy_image () {
 	cd ${directory}/QCM6490_apps_qssi15/LINUX/android;repo manifest -o manifest_${builtdate}_qssi15.xml -r;mv manifest_${builtdate}_qssi15.xml ${directory}/shell-script/artifact/${zipfile}
     cd ${directory}/shell-script; repo manifest -o manifest_${builtdate}.xml -r; mv manifest_${builtdate}.xml artifact/${zipfile}
     cp -r ${directory}/shell-script/artifact/symbol_backup.zip ${directory}/shell-script/artifact/${zipfile}/
-	cp -r ${directory}/shell-script/buildlog_user.txt artifact/
-	zip -r buildlog.zip buildlog_user.txt
+	cp -r ${directory}/shell-script/buildlog.txt artifact/
+	zip -r buildlog.zip buildlog.txt
 	cp -r ${directory}/shell-script/ota_package_a15 artifact/
 	cd artifact
     #zip -r debug.zip debug
@@ -102,7 +102,7 @@ auto_tag () {
 }
 
 #main
-version="user"
+version="userdebug"
 zipfile=${builtdate}_${branch}_${version}_a15_nogms
 #zipfile=${builtdate}_${branch}_${version}_a15
 #mail_title=[Thorpe_A15][daily_build_${builtdate}][$branch][$version]
@@ -118,10 +118,11 @@ copy_image
 upload_image
 mail_title=[Thorpe_A15][daily_build_${builtdate}][$branch][$version][NOGMS]
 
-if [ -e ${directory}/shell-script/artifact/${zipfile}/fastboot.zip ];then
-	echo -e $success_content | mutt -s $mail_title -- $members
-else
-    echo -e $fail_content | mutt -a ${LOGFILE} -s $mail_title -- $members
-fi
+# [V2-CLEANUP] Old notification moved to china_dailybuild_v2.bash
+# if [ -e ${directory}/shell-script/artifact/${zipfile}/fastboot.zip ];then
+# 	echo -e $success_content | mutt -s $mail_title -- $members
+# else
+#     echo -e $fail_content | mutt -a ${LOGFILE} -s $mail_title -- $members
+# fi
 #auto_tag
 exit 0

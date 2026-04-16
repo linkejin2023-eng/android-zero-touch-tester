@@ -4,8 +4,11 @@
 
 ## [2.6.0] - 2026-04-16 - CI 工業化與 China SKU 深度整合 (CI Industrialization)
 ### Added (新增)
-- **China SKU (NoGMS) 專業調度器**：實作 `china_dailybuild_v2.bash` 與 `china_releasebuild_v2.bash`，將 China 分支編譯納入全自動測試與發信體系。
-- **智慧型環境豁免邏輯 (Honest Exit Code)**：在 `main.py` 中導入 `SOFT_FAILURE_LIST`。GPS、NFC 與 WiFi Association 失敗將被標註為「環境因素」，不計入 CI 最終失敗判定，確保退出碼誠實反映軟體品質。
+- **China SKU (NoGMS) 專業調度器整合**：建立 `china_dailybuild_v2.bash` 與 `china_releasebuild_v2.bash` 調度器。
+- **Worker 腳本命名規範 (Naming Convention)**：
+    - 保留原始 `auto_..._nogms_A15.bash` 不動。
+    - 建立 `auto_..._nogms_A15_v2.bash` 作為增強版，實作時間戳同步與發信邏輯清理，對齊 GMS 精英版架構。
+- **智慧型環境豁免邏輯 (Honest Exit Code)**：在 `main.py` 中導入 `SOFT_FAILURE_LIST` (GPS/NFC/WiFi)，確保退出碼誠實反映軟體品質。
 - **精英級模組化通知郵件**：
   - **專業主旨格式**：`[SUCCESS/STABLE/FAILURE]` 狀態標籤、Variant 首字母大寫 (User/Userdebug)、以及 SKU/版號資訊。
   - **提貨連結優先**：郵件內文第一行即為軟體提取連結，大幅提升開發者獲取 Build 的效率。

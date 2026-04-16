@@ -86,15 +86,15 @@ trigger_remote_test () {
 export DATE_TAG=$(date +%Y%m%d%H%M)
 
 # 1. 執行 China Userdebug 編譯
-BRANCH_USERDEBUG=$(get_branch_name "auto_daily_build_nogms_A15.bash")
+BRANCH_USERDEBUG=$(get_branch_name "auto_daily_build_nogms_A15_v2.bash")
 echo "[V2-INFO] Starting China Userdebug build (Branch: $BRANCH_USERDEBUG, Timestamp: $DATE_TAG)..."
-bash "$SCRIPT_DIR/auto_daily_build_nogms_A15.bash"
+bash "$SCRIPT_DIR/auto_daily_build_nogms_A15_v2.bash"
 trigger_remote_test "userdebug" "$DATE_TAG" "$BRANCH_USERDEBUG"
 
 # 2. 執行 China User 編譯
-BRANCH_USER=$(get_branch_name "auto_daily_userbuild_nogms_A15.bash")
+BRANCH_USER=$(get_branch_name "auto_daily_userbuild_nogms_A15_v2.bash")
 echo "[V2-INFO] Starting China User build (Branch: $BRANCH_USER, Timestamp: $DATE_TAG)..."
-bash "$SCRIPT_DIR/auto_daily_userbuild_nogms_A15.bash"
+bash "$SCRIPT_DIR/auto_daily_userbuild_nogms_A15_v2.bash"
 trigger_remote_test "user" "$DATE_TAG" "$BRANCH_USER"
 
 echo "[V2-SUCCESS] China Daily build pipeline execution finished."

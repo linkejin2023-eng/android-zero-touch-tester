@@ -16,12 +16,12 @@ MEMBERS="Billy_Chen@pegatroncorp.com,Aaren_Bai@pegatroncorp.com,Nick_Chuang@pega
 
 # --- 功能函數：從 Worker 腳本中動態提取最新版號 ---
 get_release_version() {
-    grep "^builtdate=" "$SCRIPT_DIR/auto_release_build_nogms_A15.bash" | cut -d'"' -f2
+    grep "^builtdate=" "$SCRIPT_DIR/auto_release_build_nogms_A15_v2.bash" | cut -d'"' -f2
 }
 
 # --- 功能函數：從 Worker 腳本中動態提取分支名稱並清理輸出 ---
 get_clean_branch() {
-    local full_branch=$(grep "^branch=" "$SCRIPT_DIR/auto_release_build_nogms_A15.bash" | cut -d'"' -f2)
+    local full_branch=$(grep "^branch=" "$SCRIPT_DIR/auto_release_build_nogms_A15_v2.bash" | cut -d'"' -f2)
     echo "${full_branch#release/}" # 移除 "release/" 前綴以對齊伺服器目錄
 }
 
@@ -97,12 +97,12 @@ echo "[V2-INFO] Detected Target Version: REL_$VERSION_TAG (Branch: $BRANCH_TAG)"
 
 # 1. 執行 China Release Userdebug 編譯
 echo "[V2-INFO] Starting China Release Userdebug build..."
-bash "$SCRIPT_DIR/auto_release_build_nogms_A15.bash"
+bash "$SCRIPT_DIR/auto_release_build_nogms_A15_v2.bash"
 trigger_remote_test "userdebug" "$VERSION_TAG" "$BRANCH_TAG"
 
 # 2. 執行 China Release User 編譯
 echo "[V2-INFO] Starting China Release User build..."
-bash "$SCRIPT_DIR/auto_release_userbuild_nogms_A15.bash"
+bash "$SCRIPT_DIR/auto_release_userbuild_nogms_A15_v2.bash"
 trigger_remote_test "user" "$VERSION_TAG" "$BRANCH_TAG"
 
 echo "[V2-SUCCESS] China Release pipeline execution finished."
