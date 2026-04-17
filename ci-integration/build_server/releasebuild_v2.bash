@@ -129,10 +129,11 @@ trigger_remote_test () {
 # =================================================================
 
 # 1. 準備編譯腳本 (使用變數化的模板名稱)
-sed "s/$OLD_VERSION/$VERSION/g" $TEMPLATE_USERDEBUG > "$SCRIPT_DIR/auto_release_build_A15_v2.bash"
+# 這裡使用 sed 同時完成：1.版號替換 2.日期替換 3.自動註解 mutt 發信行
+sed "s/$OLD_VERSION/$VERSION/g; s/$OLD_DATE/$VERSION_DATE/g; /mutt/s/^/#/" $TEMPLATE_USERDEBUG > "$SCRIPT_DIR/auto_release_build_A15_v2.bash"
 sed -i "s/2.2.1/2.2.2/g" "$SCRIPT_DIR/auto_release_build_A15_v2.bash"
 
-sed "s/$OLD_VERSION/$VERSION/g" $TEMPLATE_USER > "$SCRIPT_DIR/auto_release_userbuild_A15_v2.bash"
+sed "s/$OLD_VERSION/$VERSION/g; s/$OLD_DATE/$VERSION_DATE/g; /mutt/s/^/#/" $TEMPLATE_USER > "$SCRIPT_DIR/auto_release_userbuild_A15_v2.bash"
 sed -i "s/2.2.1/2.2.2/g" "$SCRIPT_DIR/auto_release_userbuild_A15_v2.bash"
 
 # 2. 執行 Userdebug 編譯

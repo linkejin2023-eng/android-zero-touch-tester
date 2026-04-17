@@ -3,6 +3,17 @@
 # china_releasebuild_v2.bash - NoGMS Release CI/CD 調度主控器
 # =================================================================
 
+# [測試開關] 若想跳過編譯，請設為 true 進行流程測試
+DRY_RUN=false
+
+# [維護重點] 每個新版本 Release 時，請僅修改這兩行：
+VERSION="02.01.07.N.260417"
+VERSION_DATE="260417"
+
+# [註] 以下兩行需與原始產線腳本 (Template) 內的舊版號一致
+OLD_VERSION="02.01.06.N.260310"
+OLD_DATE="260310"
+
 # [環境參數] 工具路徑
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEST_SERVER="10.192.220.17"
@@ -11,17 +22,21 @@ REMOTE_TEST_USER="franck_lin"
 REMOTE_TEST_DIR="/home/franck_lin/auto_test"
 IMAGE_ROOT="/media/share/thorpe/Android_15/Release_pega"
 
+# [模板參數] 定義原始編譯腳本名稱 (SCM 提供)
+TEMPLATE_USERDEBUG="$SCRIPT_DIR/auto_release_build_nogms_A15.bash"
+TEMPLATE_USER="$SCRIPT_DIR/auto_release_userbuild_nogms_A15.bash"
+
 # [通知參數]
 MEMBERS="Billy_Chen@pegatroncorp.com,Aaren_Bai@pegatroncorp.com,Nick_Chuang@pegatroncorp.com,Jason1_Pan@pegatroncorp.com,Terry_Tzeng@pegatroncorp.com,Jack2_Hsu@pegatroncorp.com,Franck_Lin@pegatroncorp.com,James8_Chen@pegatroncorp.com,Calvin_Yu@pegatroncorp.com,Smal_Lin@pegatroncorp.com,Frank1_Yen@pegatroncorp.com,Andy1_Hsu@pegatroncorp.com,Hongde_Liu@pegatroncorp.com,Allen2_Chang@pegatroncorp.com,PennyC_Chen@pegatroncorp.com,Gordon1_Yu@pegatroncorp.com,Liche_Wu@pegatroncorp.com,Denny_Yang@pegatroncorp.com,MingChung_Wu@pegatroncorp.com,Hikaru_Fukaya@pegatroncorp.com,Lisa_Hsu@pegatroncorp.com,Rasmus_Lai@pegatroncorp.com,Ryan6_Lin@pegatroncorp.com,Joann_Liu@pegatroncorp.com,Parker6_Chen@pegatroncorp.com,Allen_Lee@pegatroncorp.com,Mike_Yang@pegatroncorp.com,Jeff6_Lin@pegatroncorp.com,Qilin_Zhu@pegatroncorp.com,Parker_Chen@pegatroncorp.com"
 
 # --- 功能函數：從 Worker 腳本中動態提取最新版號 ---
 get_release_version() {
-    grep "^builtdate=" "$SCRIPT_DIR/auto_release_build_nogms_A15_v2.bash" | cut -d'"' -f2
+    echo "$VERSION"
 }
 
-# --- 功能函數：從 Worker 腳本中動態提取分支名稱並清理輸出 ---
+# --- 功能函數：從模板動態提取分支名稱 ---
 get_clean_branch() {
-    local full_branch=$(grep "^branch=" "$SCRIPT_DIR/auto_release_build_nogms_A15_v2.bash" | cut -d'"' -f2)
+    local full_branch=$(grep "^branch=" "$TEMPLATE_USERDEBUG" | cut -d'"' -f2)
     echo "${full_branch#release/}" # 移除 "release/" 前綴以對齊伺服器目錄
 }
 
@@ -42,7 +57,7 @@ send_smoke_test_report () {
     # [主旨] [STATUS] Project Activity: ID (SKU/Variant) - Smoke Test: RESULT
     local mail_title="[$status_tag][Thorpe_A15] Release: REL_$version ($SKU/$variant_cap) - Smoke Test: $status"
     
-    # [路徑轉義修正] 針對 China SKU Release 的目錄結構：
+    # [路徑轉義修正] 針對 China SKU Release 的目錄結構
     local win_root="\\\\\\\\10.192.188.16\\share\\\\thorpe\\\\Android_15\\\\Release_pega"
     local rel_v="REL_${version}"
     local folder_v="${branch}_${variant}_a15_nogms"
@@ -91,18 +106,33 @@ trigger_remote_test () {
 # =================================================================
 # MAIN FLOW
 # =================================================================
+
+# 1. 準備編譯腳本 (使用 sed 同時完成：版本替換、路徑修正、自動註解 mutt)
+# 我們會廣域替換 $OLD_VERSION 為 $VERSION，連帶解決 scp 路徑中的硬編碼問題
+sed "s/$OLD_VERSION/$VERSION/g; s/$OLD_DATE/$VERSION_DATE/g; /mutt/s/^/#/" $TEMPLATE_USERDEBUG > "$SCRIPT_DIR/auto_release_build_nogms_A15_v2.bash"
+sed "s/$OLD_VERSION/$VERSION/g; s/$OLD_DATE/$VERSION_DATE/g; /mutt/s/^/#/" $TEMPLATE_USER > "$SCRIPT_DIR/auto_release_userbuild_nogms_A15_v2.bash"
+
+# 2. 獲取處理後的分支名稱 (從 v2 獲取以確保同步)
 VERSION_TAG=$(get_release_version)
 BRANCH_TAG=$(get_clean_branch)
 echo "[V2-INFO] Detected Target Version: REL_$VERSION_TAG (Branch: $BRANCH_TAG)"
 
-# 1. 執行 China Release Userdebug 編譯
+# 3. 執行 China Release Userdebug 編譯
 echo "[V2-INFO] Starting China Release Userdebug build..."
-bash "$SCRIPT_DIR/auto_release_build_nogms_A15_v2.bash"
+if [ "$DRY_RUN" = true ]; then
+    echo "[V2-DRYRUN] Skipping Userdebug build..."
+else
+    bash "$SCRIPT_DIR/auto_release_build_nogms_A15_v2.bash"
+fi
 trigger_remote_test "userdebug" "$VERSION_TAG" "$BRANCH_TAG"
 
-# 2. 執行 China Release User 編譯
+# 4. 執行 China Release User 編譯
 echo "[V2-INFO] Starting China Release User build..."
-bash "$SCRIPT_DIR/auto_release_userbuild_nogms_A15_v2.bash"
+if [ "$DRY_RUN" = true ]; then
+    echo "[V2-DRYRUN] Skipping User build..."
+else
+    bash "$SCRIPT_DIR/auto_release_userbuild_nogms_A15_v2.bash"
+fi
 trigger_remote_test "user" "$VERSION_TAG" "$BRANCH_TAG"
 
 echo "[V2-SUCCESS] China Release pipeline execution finished."

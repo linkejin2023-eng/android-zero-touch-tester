@@ -4,7 +4,10 @@
 
 ## [2.6.0] - 2026-04-16 - CI 工業化與 China SKU 深度整合 (CI Industrialization)
 ### Added (新增)
-- **China SKU (NoGMS) 專業調度器整合**：建立 `china_dailybuild_v2.bash` 與 `china_releasebuild_v2.bash` 調度器。
+- **Release 全體系「模板自動化」整合**：
+    - **支援 GMS 與 China SKU**：主控端現在會自動讀取原始模板，透過 `sed` 改版號後產出 `_v2` 檔案執行。
+    - **自動發信靜默化**：`sed` 會自動註解子腳本內的所有 `mutt` 指令，確保郵件通知由 V2 主控端統一管理。
+    - **SCM 友好介面**：維護者只需在主控端修改 `VERSION` 變數即可一鍵改版，不需進入子腳本。
 - **Worker 腳本命名規範 (Naming Convention)**：
     - 保留原始 `auto_..._nogms_A15.bash` 不動。
     - 建立 `auto_..._nogms_A15_v2.bash` 作為增強版，實作時間戳同步與發信邏輯清理，對齊 GMS 精英版架構。
