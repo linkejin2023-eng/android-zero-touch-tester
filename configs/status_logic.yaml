@@ -1,0 +1,58 @@
+# Android CI/CD Status Logic Registry
+# Level definitions:
+#   CRITICAL     - Failure results in [FAILED] status. (Blocker)
+#   PARTIAL      - Failure results in [PARTIAL] status. (Quality Warning)
+#   ENV_EXCLUDED - Failure results in [ENV-EXCLUDED] tag; excluded from Pass Rate calculation.
+
+items:
+  # --- System ---
+  - { category: "System", name: "ADB & UIAutomator Connection", level: "CRITICAL" }
+  - { category: "System", name: "Security Preflight", level: "CRITICAL" }
+  - { category: "System", name: "Reboot Stability", level: "PARTIAL" }
+  - { category: "System", name: "Factory Reset Lifecycle", level: "PARTIAL" }
+
+  # --- Firmware ---
+  - { category: "Firmware", name: "WWAN Module Firmware", level: "PARTIAL" }
+  - { category: "Firmware", name: "Touch IC Firmware", level: "PARTIAL" }
+  - { category: "Firmware", name: "Keypad MCU Firmware", level: "PARTIAL" }
+
+  # --- Audio ---
+  - { category: "Audio", name: "Audio Service Check", level: "PARTIAL" }
+  - { category: "Audio", name: "Media Volume Control", level: "PARTIAL" }
+  - { category: "Audio", name: "Audio HAL Initialization", level: "PARTIAL" }
+  - { category: "Audio", name: "Microphone Hardware Verification", level: "PARTIAL" }
+
+  # --- Camera ---
+  - { category: "Camera", name: "Camera HAL Initialization", level: "PARTIAL" }
+  - { category: "Camera", name: "Photo Capture", level: "PARTIAL" }
+  - { category: "Camera", name: "Video Recording", level: "PARTIAL" }
+
+  # --- Connectivity ---
+  - { category: "Connectivity", name: "Mutual Exclusivity", level: "PARTIAL" }
+  - { category: "Connectivity", name: "WiFi Enable", level: "PARTIAL" }
+  - { category: "Connectivity", name: "WiFi Scanning", level: "PARTIAL" }
+  - { category: "Connectivity", name: "WiFi AP Connection", level: "ENV_EXCLUDED" }
+  - { category: "Connectivity", name: "WiFi Disable Toggle", level: "PARTIAL" }
+  - { category: "Connectivity", name: "Bluetooth Enable", level: "PARTIAL" }
+  - { category: "Connectivity", name: "Bluetooth Scanning", level: "PARTIAL" }
+  - { category: "Connectivity", name: "Bluetooth Disable Toggle", level: "PARTIAL" }
+  - { category: "Connectivity", name: "WWAN Data Transfer", level: "PARTIAL" }
+
+  # --- Sensors ---
+  - { category: "Sensors", name: "Accelerometer (Presence)", level: "PARTIAL" }
+  - { category: "Sensors", name: "Gyroscope (Presence)", level: "PARTIAL" }
+  - { category: "Sensors", name: "Magnetometer (Presence)", level: "PARTIAL" }
+  - { category: "Sensors", name: "Accelerometer (Entropy)", level: "PARTIAL" }
+  - { category: "Sensors", name: "Gyroscope (Entropy)", level: "PARTIAL" }
+  - { category: "Sensors", name: "e-Compass (Presence)", level: "PARTIAL" }
+
+  # --- Power ---
+  - { category: "Power", name: "Battery Read", level: "PARTIAL" }
+
+  # --- NFC ---
+  - { category: "NFC", name: "NFC Power Cycle", level: "PARTIAL" }
+  - { category: "NFC", name: "Tag Read Verification", level: "ENV_EXCLUDED" }
+
+  # --- GPS ---
+  - { category: "GPS", name: "GPS Provider", level: "PARTIAL" }
+  - { category: "GPS", name: "GPS Antenna Signal", level: "ENV_EXCLUDED" }

@@ -256,61 +256,168 @@ class OOBEBypass:
         ]
         self._execute_sequence(sequence)
 
+        logging.info("Recovery HID Reset sequence delivered.")
+
+    def reset_via_recovery_adb(self):
+        """Tier 2: Industrial ADB-based reset while in Recovery mode.
+        Much more reliable than HID navigation for T70.
+        """
+        logging.info("Starting Recovery ADB Reset Sequence...")
+        try:
+            # 1. Elevate to root if possible
+            subprocess.run(["adb", "root"], capture_output=True)
+            time.sleep(2)
+            
+            # 2. Execute the official recovery wipe command
+            logging.info("Sending 'recovery --wipe_data' command...")
+            result = subprocess.run(
+                ["adb", "shell", "recovery", "--wipe_data"],
+                capture_output=True, text=True, timeout=15
+            )
+            
+            if result.returncode == 0 or "rebooting" in result.stdout.lower():
+                logging.info("Wipe command accepted. Device should reboot shortly.")
+                return True
+            else:
+                logging.error(f"Recovery wipe command failed: {result.stderr}")
+                return False
+        except Exception as e:
+            logging.error(f"Error during Recovery ADB reset: {e}")
+            return False
+
+    def _clean_and_dismiss_popups(self, d):
+        """Pre-navigation cleanup: Dismiss known popups and return to a clean Home state."""
+        logging.info("Performing pre-navigation cleanup...")
+        
+        # 1. Handle Trimble Touch Firmware Update Popup (YES/NO)
+        for _ in range(3):
+            if d(textContains="touch firmware").exists() or d(textMatches="(?i).*update.*touch.*").exists():
+                logging.info("Dismissing Touch IC Firmware Update popup...")
+                if d(text="NO").exists():
+                    d(text="NO").click()
+                    time.sleep(2)
+        
+        # 2. General OOBE/Permission dismissals
+        if d(text="Allow").exists(): d(text="Allow").click()
+        if d(text="CONFIRM").exists(): d(text="CONFIRM").click()
+
+        # 3. Force clean start: Kill potential UI hijackers
+        d.press("home")
+        d.app_stop("com.android.settings")
+        d.app_stop("com.google.android.apps.maps")
+        d.app_stop("com.google.android.gms")
+        time.sleep(2)
+
     def reset_device_to_factory_settings(self):
-        """Executes the recorded HID sequence to perform a Factory Reset."""
-        logging.info("Starting Factory Reset sequence via HID (including Wake-up logic)...")
+        """Standardized industrial reset: UI-driven (Primary). Tier 2 removed for User Build stability."""
+        logging.info("--- Starting Automated Factory Reset (UI Mode) ---")
         
-        # 1. Aggressive Wake up & Keyguard Dismiss
+        # 1. Primary Method: Settings UI via Hierarchical Navigation + UIAutomator2
         try:
-            import subprocess
-            # Try ADB wakeup first
-            logging.info("Attempting to wake up device and dismiss keyguard via ADB...")
-            subprocess.run(["adb", "shell", "input", "keyevent", "KEYCODE_WAKEUP"], capture_output=True)
-            subprocess.run(["adb", "shell", "wm", "dismiss-keyguard"], capture_output=True)
-            time.sleep(1)
-        except:
-            pass
+            logging.info("Tier 1: Triggering via Settings UI (Navigational Approach)...")
+            from uiautomator2 import connect
+            d = connect()
+            
+            # Pre-cleaning
+            self._clean_and_dismiss_popups(d)
+            
+            # Re-open Settings (Use direct intent to be more authoritative)
+            logging.info("Opening Settings...")
+            d.shell("am start -W -a android.settings.SETTINGS")
+            time.sleep(2)
+            
+            # Hierarchical navigation: System -> Reset options -> Erase all data (factory reset) -> Confirm (twice)
+            nav_sequence = ["System", "Reset options", "Erase all data (factory reset)", "Erase all data", "Erase all data"]
+            for target in nav_sequence:
+                logging.info(f"UI Search -> Looking for target: '{target}'")
+                
+                found = False
+                # Manual swipe loop (Max 15 swipes)
+                for swipe_attempt in range(15):
+                    # Environment check: If we are searching for 'System' but see Google Maps elements,
+                    # it means we are likely trapped. Trigger recovery.
+                    if target == "System" and swipe_attempt == 3:
+                        if d(textContains="Explore").exists() or d(textContains="Contribute").exists():
+                            logging.warning("Detected Google Maps hijacking! Re-opening Settings...")
+                            d.app_stop("com.google.android.apps.maps")
+                            d.shell("am start -W -a android.settings.SETTINGS")
+                            time.sleep(2)
 
-        # 2. HID Fallback Wake up (Send ESC and SPACE to wake screen + dismiss swipe lock)
-        logging.info("Sending HID Wake-up/Unlock signals (ESC, SPACE, HOME)...")
-        self.press_key(KEY_ESC)
-        time.sleep(0.5)
-        self.press_key(KEY_SPACE)
-        time.sleep(0.5)
-        self.press_home() 
-        time.sleep(1.5)
-        
-        # 3. Pre-cleanup Settings
-        try:
-            import subprocess
-            logging.info("Ensuring Settings app is in a fresh state...")
-            subprocess.run(["adb", "shell", "am", "force-stop", "com.android.settings"], capture_output=True)
-            subprocess.run(["adb", "shell", "am", "start", "-a", "android.settings.SETTINGS"], capture_output=True)
-            time.sleep(2.5)
-        except:
-            pass
+                    # For the last two confirmation steps, prioritize BUTTON type
+                    if target == "Erase all data":
+                        btn = d(textContains=target, className="android.widget.Button")
+                    else:
+                        btn = d(textContains=target)
+                    
+                    if btn.exists():
+                        logging.info(f"Found target '{target}' (type: Button if confirmation). Clicking...")
+                        btn.click()
+                        time.sleep(4) # More time for transition/reboot trigger
+                        found = True
+                        break
+                    else:
+                        logging.info(f"Target '{target}' not found (Attempt {swipe_attempt+1}/15). Swiping up...")
+                        d.swipe_ext("up", scale=0.7)
+                        time.sleep(1.5)
+                
+                if not found:
+                    logging.error(f"Navigation failed at: {target}. Screen dump for audit:")
+                    # Capture current UI text labels for final debug before failing
+                    try:
+                        texts = [el.get_text() for el in d(className="android.widget.TextView")]
+                        logging.error(f"Visible texts: {texts}")
+                    except: pass
+                    raise Exception(f"Failed to find navigation target: {target}")
 
-        # 2. Recorded Sequence
-        # If 'am start' worked, we are in Settings. 
-        # If it didn't, 'SETTINGS' (Win+I) is our fallback.
-        sequence = ["SETTINGS", "TAB", "SLEEP_1"] # TAB for focus + delay
-        sequence.extend(["DOWN"] * 27)
-        sequence.extend(["UP", "ENTER"])
-        sequence.extend(["DOWN"] * 17)
-        sequence.extend(["ENTER"])
-        sequence.extend(["DOWN"] * 13)
-        sequence.extend(["ENTER"])
-        sequence.extend(["TAB", "TAB", "TAB", "ENTER", "TAB", "ENTER"])
-        
-        self._execute_sequence(sequence)
-        logging.info("Factory Reset HID sequence execution finished of course.")
+            # Final check for reboot trigger
+            logging.info("UI Navigation complete. Monitoring for reboot (30s)...")
+            start_monitor = time.time()
+            while time.time() - start_monitor < 30:
+                try:
+                    # If device disconnects, adb will fail
+                    subprocess.check_output(["adb", "shell", "getprop", "sys.boot_completed"], timeout=5)
+                except:
+                    logging.info("Device disconnected. Factory reset successfully triggered.")
+                    self._wait_for_oobe_return()
+                    return
+                time.sleep(5)
+            logging.warning("UI navigation finished but device did not reboot within 30s.")
+        except Exception as e:
+            logging.error(f"Factory Reset failed: {e}")
+          
+        self._wait_for_oobe_return()
+
+    def _wait_for_oobe_return(self, timeout=120):
+        """Blocks until device returns to system/unauthorized mode after reset."""
+        logging.info(f"Reset cycling... Waiting up to {timeout}s for OOBE...")
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            try:
+                out = subprocess.check_output(["adb", "devices"]).decode()
+                if "device" in out or "unauthorized" in out:
+                    logging.info("Device successfully returned to OOBE/System.")
+                    return True
+            except: pass
+            time.sleep(5)
+        return False
 
     def _execute_sequence(self, sequence):
         # 1. Reset/Start from scratch (Optional: Only if Home isn't already handled)
         # self.press_key(KEY_NONE, MOD_LMETA) 
         # time.sleep(2)
 
+        def check_adb():
+            try:
+                out = subprocess.check_output(["adb", "devices"]).decode()
+                return "\tdevice" in out
+            except: return False
+
         for step in sequence:
+            # Short-circuit if ADB becomes ready mid-sequence
+            if check_adb():
+                logging.info("ADB detected during sequence. Terminating OOBE clicks early.")
+                return True
+
             logging.info(f"HID Event -> Sending: {step}")
             if step == "TAB":
                 self.press_key(KEY_TAB)
@@ -362,6 +469,18 @@ def run_oobe_bypass(sku="gms", timeout=600):
             return False
 
     while time.time() - start < timeout:
+        # 1. First priority: Check if ADB is ALREADY ready (authorized/userdebug)
+        # If it is, we can skip everything and return success immediately
+        if is_adb_ready():
+            logging.info("ADB is already ready and authorized. Skipping OOBE/HID sequence.")
+            # Even if it's already ready, we ensure developer settings are ON as a precaution
+            try:
+                subprocess.run(["adb", "shell", "settings", "put", "global", "development_settings_enabled", "1"], capture_output=True)
+                subprocess.run(["adb", "shell", "settings", "put", "global", "adb_enabled", "1"], capture_output=True)
+            except: pass
+            return True
+
+        # 2. If not ready, poll for USB device to start AOA flow
         if driver.find_device():
             logging.info("Device detected! Starting AOA handshake...")
             if driver.switch_to_accessory_mode():

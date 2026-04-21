@@ -124,11 +124,11 @@ def run_tests(ui: UIHelper, reporter: HTMLReportGenerator, ssid=None, password=N
                     logging.info(f"Waiting for IP ({i}/90s)... Signal: {rssi}dBm | Speed: {speed} | Status: {last_status[:40]}...")
 
             if ip:
-                reporter.add_result("Connectivity", "WiFi Association", True, f"Connected to {target_ssid} (IP: {ip})")
+                reporter.add_result("Connectivity", "WiFi AP Connection", True, f"Connected to {target_ssid} (IP: {ip})")
             else:
-                reporter.add_result("Connectivity", "WiFi Association", False, f"Failed to get IP address for {target_ssid}. Last status: {last_status}")
+                reporter.add_result("Connectivity", "WiFi AP Connection", False, f"Failed to get IP address for {target_ssid}. Last status: {last_status}")
         else:
-            reporter.add_result("Connectivity", "WiFi Association", False, "No target SSID/PWD provided in config", status_override="SKIP")
+            reporter.add_result("Connectivity", "WiFi AP Connection", False, "No target SSID/PWD provided in config", status_override="SKIP")
         
         # --- Robust WiFi Toggle Verification ---
         logging.info("Verifying WiFi 'Disable' functionality...")

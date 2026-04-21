@@ -16,4 +16,4 @@ lock_file: "test.lock"
 fastboot_filename: "fastboot.zip"
 
 # 清理策略
-max_retention_zips: 2
+max_retention_zips: 4

@@ -3,16 +3,31 @@ import logging
 import time
 
 class UIHelper:
-    def __init__(self, serial=None):
-        try:
-            logging.info("Connecting to uiautomator2...")
-            self.d = u2.connect(serial) # if None, connects to local device
-            # This triggers the automatic installation of uiautomator apks if missing
-            self.d.app_info("com.android.settings") 
-            logging.info("UIAutomator2 connected successfully.")
-        except Exception as e:
-            logging.error(f"Failed to connect UIAutomator2: {e}")
-            raise e
+    def __init__(self, serial=None, retries=3):
+        import subprocess
+        self.d = None
+        
+        for attempt in range(retries):
+            try:
+                # Pre-emptive strike: Clear potential overlays via ADB
+                logging.info(f"UIAutomator2 connection attempt {attempt + 1}/{retries}...")
+                subprocess.run(["adb", "shell", "input", "keyevent", "3"], capture_output=True) # KEYCODE_HOME
+                time.sleep(2)
+                
+                self.d = u2.connect(serial)
+                # Verify connection quality
+                self.d.app_info("com.android.settings")
+                logging.info("UIAutomator2 connected successfully.")
+                return
+            except Exception as e:
+                logging.warning(f"Connection attempt {attempt + 1} failed: {e}")
+                if attempt < retries - 1:
+                    wait_time = (attempt + 1) * 5
+                    logging.info(f"Waiting {wait_time}s before retrying...")
+                    time.sleep(wait_time)
+                else:
+                    logging.error("All UIAutomator2 connection attempts failed.")
+                    raise e
             
     def launch_app(self, package_name: str):
         logging.info(f"Launching app: {package_name}")

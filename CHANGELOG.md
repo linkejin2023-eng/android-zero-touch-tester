@@ -1,5 +1,30 @@
 # Changelog
 
+## [2.2.2] - 2026-04-21
+### 核心架構加固 (Industrialization)
+- **CI/CD 通知鏈條升級**：
+  - 新增 [CRITICAL: INFRA_ERROR] 報警機制，覆蓋「Image 缺失」、「搬運失敗」、「設備斷線」等基礎設施故障。
+  - 新增 [SUCCESS (Exempted)] 標籤，精確區分「純軟體成功」與「環境豁免項目」。
+  - 實現 trigger_job.py 全路徑報警覆蓋，徹底杜絕「靜默失敗」。
+- **路徑辨識演算法修正**：解決了正式環境下 Image Server 遠端路徑被誤判為本地路徑的關鍵 Bug。
+- **Workspace 智慧清理**：
+  - 保留數量提升至 4 份。設定位於 configs/monitor_config.yaml。
+  - 自動清除巨大的 fastboot 資料夾與 .zip，但精確保留 report 與 artifacts 以供回溯。
+
+### 測試穩定性優化 (Stability)
+- **Factory Reset 防劫持機制**：
+  - 新增 Google Maps 強制關閉與導航修正邏輯，解決了 GPS 測試殘留導致的重置失敗。
+  - 將導航滑動上限從 10 次提升至 15 次，增加 50% 容錯空間。
+- **遠端執行環境自癒**：修正了 SSH 遠端執行時找不到 fastboot 指令的崩潰問題，改為智慧警告並繼續執行。
+
+### 開發與維護工具 (Tooling)
+- **智慧郵件預覽工具 (preview_notification.py)**：支援 GMS/China、Daily/Release 四種模板自動辨識。
+- **CI 腳本全線同步**：完成 GMS 與 China SKU (Daily/Release) 共四支主控腳本的邏輯對齊。
+- **報表渲染修正**：修正 report_generator.py 的讀取 Key，確保 ENV_EXCLUDED 狀態能正確顯示為黃色標籤。
+
+---
+
+
 所有關於本專案的顯著變更將會記錄於此檔案中。
 
 ## [2.6.0] - 2026-04-16 - CI 工業化與 China SKU 深度整合 (CI Industrialization)

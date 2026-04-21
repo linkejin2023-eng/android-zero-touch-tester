@@ -44,18 +44,33 @@ get_clean_branch() {
 send_smoke_test_report () {
     local variant=$1
     local version=$2
-    local status=$3
-    local branch=$4
+    local code=$3
+    local json_data="$4"
+    local branch=$5
     local SKU="China"
     
-    local status_tag="STABLE"
-    [ "$status" == "FAILED" ] && status_tag="FAILURE"
+    # 解析 JSON 數據
+    local status=$(echo "$json_data" | python3 -c "import sys, json; print(json.load(sys.stdin).get('status', 'UNKNOWN'))")
+    local pass_rate=$(echo "$json_data" | python3 -c "import sys, json; print(json.load(sys.stdin).get('stats', {}).get('pass_rate', 'N/A'))")
+    local failed_list=$(echo "$json_data" | python3 -c "import sys, json; data=json.load(sys.stdin); print('\n'.join([f'- {c[\"category\"]} > {c[\"test_name\"]}' for c in data.get('failed_cases', [])]))")
+    local env_list=$(echo "$json_data" | python3 -c "import sys, json; data=json.load(sys.stdin); print('\n'.join([f'- {c[\"category\"]} > {c[\"test_name\"]}' for c in data.get('env_excluded_cases', [])]))")
 
+    # 決定主旨狀態標籤
+    local status_tag="[$status]"
+    if [ "$status" == "INFRA_ERROR" ]; then
+        status_tag="[CRITICAL: $status]"
+    elif [ "$status" == "SUCCESS" ]; then
+        # 檢查是否有豁免項目
+        local exempt_count=$(echo "$json_data" | python3 -c "import sys, json; print(json.load(sys.stdin).get('stats', {}).get('exempt', 0))")
+        if [ "$exempt_count" -gt 0 ]; then
+            status_tag="[SUCCESS (Exempted)]"
+        fi
+    fi
     local variant_cap="User"
     [ "$variant" == "userdebug" ] && variant_cap="Userdebug"
 
-    # [主旨] [STATUS] Project Activity: ID (SKU/Variant) - Smoke Test: RESULT
-    local mail_title="[$status_tag][Thorpe_A15] Release: REL_$version ($SKU/$variant_cap) - Smoke Test: $status"
+    # [主旨] [STATUS][Project] Release: ID (SKU/Variant) - Smoke Test: RESULT
+    local mail_title="$status_tag[Thorpe_A15] Release: REL_$version ($SKU/$variant_cap) - Smoke Test: $status"
     
     # [路徑轉義修正] 針對 China SKU Release 的目錄結構
     local win_root="\\\\\\\\10.192.188.16\\share\\\\thorpe\\\\Android_15\\\\Release_pega"
@@ -72,11 +87,21 @@ send_smoke_test_report () {
     content+="- Version:  REL_${version}\n"
     content+="- SKU:      ${SKU}\n"
     content+="- Variant:  ${variant_cap}\n\n"
-    content+="Smoke Test Status: ${status}\n"
+    content+="Smoke Test Status: ${status} (Pass Rate: ${pass_rate})\n"
     content+="------------------------------------------------------------\n"
-    content+="Note: This build is marked as ${status_tag} based on automated smoke test results.\n"
-    content+="Environmental items (GPS/NFC/WiFi Association) are excluded from\n"
-    content+="overall status due to site signal instability.\n"
+    
+    if [ ! -z "$failed_list" ]; then
+        content+="Critical Failures:\n${failed_list}\n\n"
+    fi
+    
+    if [ ! -z "$env_list" ]; then
+        content+="Environmental Exclusions:\n${env_list}\n"
+        content+="Note: These items are excluded from overall status due to environment.\n"
+    fi
+    
+    if [ "$status" == "SUCCESS" ]; then
+        content+="Note: This version has passed all core functional tests.\n"
+    fi
     content+="============================================================\n"
     
     echo -e "$content" | mutt -s "$mail_title" -- "$MEMBERS"
@@ -94,12 +119,13 @@ trigger_remote_test () {
     local remote_path="$IMAGE_ROOT/REL_$version/$folder_v/fastboot.zip"
     
     (
-        ssh $REMOTE_TEST_USER@$TEST_SERVER "cd $REMOTE_TEST_DIR && ./.venv/bin/python3 trigger_job.py --build $version --type $variant --source release --sku nogms --remote-path $remote_path"
-        if [ $? -eq 0 ]; then
-            send_smoke_test_report "$variant" "$version" "PASS" "$branch"
-        else
-            send_smoke_test_report "$variant" "$version" "FAILED" "$branch"
-        fi
+        ssh $REMOTE_TEST_USER@$TEST_SERVER "cd $REMOTE_TEST_DIR && ./.venv/bin/python3 trigger_job.py --build $version --type $variant --source release --sku china --remote-path $remote_path"
+        local exit_code=$?
+        
+        # 抓取測試摘要 JSON
+        local summary_json=$(ssh $REMOTE_TEST_USER@$TEST_SERVER "cat $REMOTE_TEST_DIR/test_summary.json")
+        
+        send_smoke_test_report "$variant" "$version" "$exit_code" "$summary_json" "$branch"
     ) &
 }
 
@@ -107,10 +133,12 @@ trigger_remote_test () {
 # MAIN FLOW
 # =================================================================
 
-# 1. 準備編譯腳本 (使用 sed 同時完成：版本替換、路徑修正、自動註解 mutt)
-# 我們會廣域替換 $OLD_VERSION 為 $VERSION，連帶解決 scp 路徑中的硬編碼問題
-sed "s/$OLD_VERSION/$VERSION/g; s/$OLD_DATE/$VERSION_DATE/g; /mutt/s/^/#/" $TEMPLATE_USERDEBUG > "$SCRIPT_DIR/auto_release_build_nogms_A15_v2.bash"
-sed "s/$OLD_VERSION/$VERSION/g; s/$OLD_DATE/$VERSION_DATE/g; /mutt/s/^/#/" $TEMPLATE_USER > "$SCRIPT_DIR/auto_release_userbuild_nogms_A15_v2.bash"
+# 1. 準備編譯腳本 (使用 sed 同時完成：版本替換、路徑修正、全面註解 mail 相關行)
+sed "s/$OLD_VERSION/$VERSION/g; s/$OLD_DATE/$VERSION_DATE/g; /mutt/s/^/#/; /mail_title/s/^/#/; /success_content/s/^/#/" $TEMPLATE_USERDEBUG > "$SCRIPT_DIR/auto_release_build_nogms_A15_v2.bash"
+sed -i "s/2.2.1/2.2.2/g" "$SCRIPT_DIR/auto_release_build_nogms_A15_v2.bash"
+
+sed "s/$OLD_VERSION/$VERSION/g; s/$OLD_DATE/$VERSION_DATE/g; /mutt/s/^/#/; /mail_title/s/^/#/; /success_content/s/^/#/" $TEMPLATE_USER > "$SCRIPT_DIR/auto_release_userbuild_nogms_A15_v2.bash"
+sed -i "s/2.2.1/2.2.2/g" "$SCRIPT_DIR/auto_release_userbuild_nogms_A15_v2.bash"
 
 # 2. 獲取處理後的分支名稱 (從 v2 獲取以確保同步)
 VERSION_TAG=$(get_release_version)

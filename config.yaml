@@ -1,4 +1,4 @@
-# Sanity Automation Framework Configuration
+# --- Android Smoke Test Configuration ---
 
 modules:
   reboot: true
@@ -12,6 +12,9 @@ modules:
   firmware: true
   auto_factory_reset: true
 
-network:
-  wifi_ssid: "Xiaomi_test"
-  wifi_pass: "0987654321"
+# --- Thresholds ---
+audio_entropy_threshold: 0.1
+sensor_variance_threshold: 0.0001
+camera_file_timeout: 10
+reboot_timeout: 120
+oobe_bypass_timeout: 300

@@ -106,6 +106,14 @@ def find_source_zip(config, build_number, build_type, source_type, sku=None, rem
         json_dir = os.path.dirname(zip_rel_path)
         json_abs_path = os.path.join(target_dir, json_dir, "build_info.json")
     
+    # 只有當路徑是本地絕對路徑、不含冒號，且「檔案真的存在於本地」時，才視為本地模式
+    if zip_abs_path.startswith("/") and ":" not in zip_abs_path and os.path.exists(zip_abs_path):
+        return {
+            "zip_path": zip_abs_path,
+            "json_path": json_abs_path,
+            "full_build_name": full_build_name
+        }
+
     return {
         "zip_path": f"{user}@{host}:{zip_abs_path}",
         "json_path": f"{user}@{host}:{json_abs_path}",

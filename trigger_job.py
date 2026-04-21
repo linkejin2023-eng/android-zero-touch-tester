@@ -38,7 +38,13 @@ def main():
     parser.add_argument("--check-only", action="store_true", help="Only verify connectivity and paths, skip execution")
     parser.add_argument("--remote-path", type=str, help="Inject absolute path to remote fastboot.zip (skips searching)")
 
-    args = parser.parse_args()
+    args, unknown = parser.parse_known_args()
+    
+    # 統一 SKU 名稱 (相容舊有 nogms 傳入)
+    if "--sku" in sys.argv:
+        idx = sys.argv.index("--sku")
+        if idx + 1 < len(sys.argv) and sys.argv[idx+1] == "nogms":
+            args.sku = "china"
 
     # 1. 載入設定
     if not os.path.exists(args.config):
@@ -60,13 +66,38 @@ def main():
     finally:
         lock.release()
 
+def generate_emergency_json(full_build_name, variant, status, category, test_name, message):
+    """產出緊急摘要 JSON，確保 CI 通知信能發出報警"""
+    try:
+        emergency_summary = {
+            "status": status,
+            "version": full_build_name,
+            "variant": variant,
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "stats": {"total": 0, "passed": 0, "failed": 0, "error": 1, "exempt": 0, "pass_rate": "0.0%"},
+            "failed_cases": [{"category": category, "test_name": test_name, "message": message}]
+        }
+        with open("test_summary.json", "w") as f:
+            import json
+            json.dump(emergency_summary, f, indent=4)
+        logging.info(f"Emergency JSON generated: {status} - {message}")
+    except Exception as e:
+        logging.error(f"Failed to generate emergency JSON: {e}")
+
 def run_job(args, config, db):
     raw_build = args.build
     build_type = args.type
     source_type = args.source
     
-    # 標準化版本號
-    build_num = get_full_build_name(raw_build)
+    # [CRITICAL SAFETY] 刪除舊的測試摘要，防止搬運失敗時誤讀舊資料
+    if os.path.exists("test_summary.json"):
+        os.remove("test_summary.json")
+    
+    # 標準化版本號 (只有 Release 需要補 REL_ 前綴)
+    if source_type == "release":
+        build_num = get_full_build_name(raw_build)
+    else:
+        build_num = raw_build
     
     # SKU 判定 (優先使用參數，否則自動判定)
     sku = args.sku if args.sku else parse_sku_from_build(build_num, source_type)
@@ -78,6 +109,7 @@ def run_job(args, config, db):
     if not build_meta:
         error_msg = f"Could not find source zip for {raw_build} in remote {source_type} folders."
         logging.error(error_msg)
+        generate_emergency_json(build_num, build_type, "INFRA_ERROR", "Source", "Image Search", error_msg)
         db.add_build(build_num, build_type, "N/A", "ERROR: Source Missing")
         return
 
@@ -116,7 +148,12 @@ def run_job(args, config, db):
             log_out.write(f"Transferring image from {source_zip}...\n")
             log_out.flush()
             
-            rsync_zip_cmd = ["rsync", "-av", "--partial", "-e", "ssh", source_zip, local_zip]
+            # 判斷是否為本地路徑 (不含冒號)
+            if ":" not in source_zip:
+                log_out.write("Detecting LOCAL source path. Skipping SSH.\n")
+                rsync_zip_cmd = ["rsync", "-av", "--progress", source_zip, local_zip]
+            else:
+                rsync_zip_cmd = ["rsync", "-av", "--partial", "-e", "ssh", source_zip, local_zip]
             
             # 實作重試機制 (最多 3 次)
             max_retries = 3
@@ -141,8 +178,11 @@ def run_job(args, config, db):
                         log_out.write("All retry attempts failed.\n")
 
             if not success:
+                error_msg = f"CRITICAL: Image transfer failed after {max_retries} attempts."
+                logging.error(error_msg)
+                generate_emergency_json(full_build_name, build_type, "INFRA_ERROR", "Infrastructure", "Image Transfer", error_msg)
                 db.update_status(full_build_name, build_type, "ERROR: Image Transfer Failed")
-                return
+                return 1
 
             # 6. 同步 build_info.json (如果有)
             source_json = build_meta['json_path']
@@ -156,6 +196,47 @@ def run_job(args, config, db):
             else:
                 log_out.write("未發現專屬 build_info.json，將在執行時使用預設配置。\n\n")
             log_out.flush()
+
+            # 6.5 [Pre-flight] Device Connectivity Check
+            log_out.write("Checking device connectivity before flashing...\n")
+            adb_found = False
+            fb_found = False
+            adb_count = 0
+            fb_count = 0
+
+            # 檢查 ADB (系統全域)
+            try:
+                adb_res = subprocess.run(["adb", "devices"], capture_output=True, text=True)
+                adb_count = len(adb_res.stdout.strip().split('\n')[1:])
+                adb_found = True
+            except FileNotFoundError:
+                log_out.write("Warning: 'adb' command not found in system PATH. Skipping ADB check.\n")
+
+            # 檢查 Fastboot (系統全域)
+            try:
+                fb_res = subprocess.run(["fastboot", "devices"], capture_output=True, text=True)
+                fb_lines = [l for l in fb_res.stdout.strip().split('\n') if l.strip()]
+                fb_count = len(fb_lines)
+                fb_found = True
+            except FileNotFoundError:
+                log_out.write("Note: 'fastboot' command not found in system PATH (expected for per-build bundled tools). Skipping Pre-flash Fastboot check.\n")
+
+            # 判定邏輯
+            if adb_found or fb_found:
+                if adb_count == 0 and fb_count == 0:
+                    error_msg = "CRITICAL: No device detected in ADB (or Fastboot if available). Aborting job."
+                    logging.error(error_msg)
+                    log_out.write(f"{error_msg}\n")
+                    generate_emergency_json(full_build_name, build_type, "INFRA_ERROR", "Infrastructure", "Device Connectivity", error_msg)
+                    db.update_status(full_build_name, build_type, "ERROR: No Device")
+                    return 1
+            else:
+                # 兩者都找不到指令 (環境問題)
+                error_msg = "CRITICAL: Both 'adb' and 'fastboot' commands are missing from system PATH."
+                logging.error(error_msg)
+                log_out.write(f"{error_msg}\n")
+                generate_emergency_json(full_build_name, build_type, "INFRA_ERROR", "Infrastructure", "Tool Missing", error_msg)
+                return 1
 
             # 7. 執行測試
             main_py = os.path.abspath("main.py")
@@ -177,7 +258,14 @@ def run_job(args, config, db):
             process = subprocess.Popen(cmd, stdout=log_out, stderr=subprocess.STDOUT, text=True)
             process.wait()
             
-            status = "SUCCESS" if process.returncode == 0 else "FAILED"
+            # Map exit codes to status strings
+            if process.returncode == 0:
+                status = "SUCCESS"
+            elif process.returncode == 2:
+                status = "PARTIAL"
+            else:
+                status = "FAILED"
+                
             log_out.write(f"\n" + "-" * 40 + "\n")
             log_out.write(f"Job Finished with status: {status} (Code: {process.returncode})\n")
 
@@ -205,11 +293,18 @@ def run_job(args, config, db):
             
             db.update_status(full_build_name, build_type, status)
             logging.info(f"Job Finished: {status}")
+            return process.returncode
 
     except Exception as e:
         logging.error(f"Fatal error during job execution: {e}")
-        db.update_status(full_build_name, build_type, f"EXCEPTION: {str(e)}")
-        with open(log_file, "a") as log_out:
+        # 捕捉任何未預期的程式崩潰並發報
+        generate_emergency_json(full_build_name if 'full_build_name' in locals() else "UNKNOWN", 
+                                build_type if 'build_type' in locals() else "UNKNOWN", 
+                                "ERROR", "Script", "Fatal Exception", str(e))
+        db.update_status(full_build_name if 'full_build_name' in locals() else "UNKNOWN", 
+                         build_type if 'build_type' in locals() else "UNKNOWN", 
+                         f"EXCEPTION: {str(e)}")
+        with open(log_file if 'log_file' in locals() else "emergency_console.log", "a") as log_out:
             log_out.write(f"\n[CRITICAL EXCEPTION] {e}\n")
 
     # 6. 智慧清理
@@ -226,14 +321,21 @@ def perform_cleanup(config, db):
         for entry in os.listdir(ws_base):
             ws_path = os.path.abspath(os.path.join(ws_base, entry))
             if os.path.isdir(ws_path) and ws_path not in protected_paths:
-                # 刪除 zip 檔案
-                for f in os.listdir(ws_path):
-                    if f.endswith(".zip"):
-                        file_to_del = os.path.join(ws_path, f)
-                        logging.info(f"Cleanup: Removing old image {file_to_del}")
-                        os.remove(file_to_del)
+                # 遍歷 workspace 內部進行精細清理
+                for item in os.listdir(ws_path):
+                    item_path = os.path.join(ws_path, item)
+                    # 1. 刪除所有 zip 檔案
+                    if item.endswith(".zip"):
+                        logging.info(f"Cleanup: Removing image {item_path}")
+                        os.remove(item_path)
+                    # 2. 刪除所有資料夾，但保留 report 和 artifacts
+                    elif os.path.isdir(item_path):
+                        if item not in ["report", "artifacts"]:
+                            logging.info(f"Cleanup: Removing large directory {item_path}")
+                            shutil.rmtree(item_path)
     except Exception as e:
         logging.error(f"Cleanup failed: {e}")
 
 if __name__ == "__main__":
-    main()
+    import sys
+    sys.exit(main())

@@ -26,6 +26,7 @@
 | **[T70] Phase 4: 資料驅動全自動驗證 (Data-Driven)** | 完結 | **100%** | JSON 屬性自適應、混合提取引擎 (shell/logcat/ui)、免寫 Code 新增韌體測項 | 2026-04-02 |
 | **[T70] Phase 5: 架構解耦與連線強韌化** | 完結 | **100%** | 執行 configs/ 目錄分離、WiFi/NFC/WWAN 強韌化、螢幕狀態自動還原 | 2026-04-02 |
 | **[T70] Phase 6: CI 通知工業化** | 完結 | **100%** | 模組化專業通知、環境假失敗豁免邏輯 (Honest Exit Code) | 2026-04-16 |
+| **[T70] Phase 7: 工業級加固與自癒機制** | 完結 | **100%** | 全路徑 INFRA_ERROR 報警、Factory Reset 劫持防護、智慧清理、預覽工具 | 2026-04-21 |
 
 ---
 
@@ -41,6 +42,8 @@
 * [**測試框架設計 (ARCHITECTURE.md)**](docs/ARCHITECTURE.md) - 解釋結合 ADB System Level 與 UIAutomator 的混合層次驗證策略。
 * [**自動化涵蓋範圍與策略 (TEST_COVERAGE.md)**](docs/TEST_COVERAGE.md) - 詳細列出 29 項測試的方法轉換，如何把物理動作變為軟體指令。
 * [**終極突破：零觸控 OOBE (ZERO_TOUCH_OOBE.md)**](docs/ZERO_TOUCH_OOBE.md) - 深入探討為何選擇 AOAv2 協定作為 Setup Wizard 封鎖下的唯一純軟體解答。
+* [**版本紀錄 (CHANGELOG.md)**](CHANGELOG.md) - 詳細紀錄工業級加固的所有修復與優化細節。
+* [**現狀與藍圖 (STATUS.md)**](STATUS.md) - 紀錄目前的穩定狀態與二代 Python 主控架構的發展規劃。
 
 ## 快速開始 (Quick Start)
 
@@ -74,22 +77,28 @@
 
 ---
 
-### ️ CLI 參數說明
-```bash
-# 情境 A:- **僅執行測試 (裝置已在 Home Screen)**:
- ```bash
- python3 main.py --only-tests
- ```
-- **完整流程 (Flash + OOBE + Tests)**:
-python3 main.py --flash /path/to/fastboot.zip
-
-# 情境 B: China SKU 全自動 (燒錄 + 中國版 OOBE + 執行測試)
-python3 main.py --flash /path/to/fastboot.zip --sku china
-
-# 情境 C: 僅繞過 OOBE (不燒錄，僅執行 AOA 盲打與 ADB 授權)
-python3 main.py --oobe --sku china --skip-tests
-
 ---
+### 2. CLI 範例 (Common Scenarios)
+
+#### 情境 A: 標準測試 (裝置已在 Home Screen 且開啟 ADB)
+```bash
+python3 main.py --only-tests
+```
+
+#### 情境 B: China SKU 全自動 (燒錄 + 中國版 OOBE + 執行測試)
+```bash
+python3 main.py --flash /path/to/fastboot.zip --sku china
+```
+
+#### 情境 C: 僅繞過 OOBE (不燒錄，僅執行 AOA 盲打與 ADB 授權)
+```bash
+python3 main.py --oobe-only --sku china
+```
+
+#### 情境 D: 遠端 CI 觸發 (由 Jenkins/SSH 發動)
+```bash
+python3 trigger_job.py --build 20260421 --type user --source daily --remote-path /path/to/fastboot.zip
+```
 
 ## CI/CD 整合結構 (Integration Architecture)
 
@@ -112,17 +121,58 @@ python3 main.py --oobe --sku china --skip-tests
 - **`trigger_job.py`**: **測試接收入口**，由 Build Server 透過 SSH 呼叫。
 - **`main.py`**: 測試框架核心，由 `trigger_job.py` 調度執行。
 
+### 3. 狀態判定權威檔案 (`configs/status_logic.yaml`)
+該設定檔定義了每個測試項目的「影響等級」，決定了測試失敗時，整份報告會呈現什麼顏色與狀態（此顏色指報表頂端總結與郵件主旨的標籤顏色）：
+
+| 等級 (Level) | 說明 | 報表顏色 | 對 Pass Rate 的影響 |
+| :--- | :--- | :---: | :---: |
+| **CRITICAL** | 致命錯誤（如連線中斷）。若失敗，主旨標記為 `[FAILED]`。 | 紅色 | 計入失敗 |
+| **PARTIAL** | 一般功能失敗。若失敗，主旨標記為 `[PARTIAL]`。 | 黃色 | 計入失敗 |
+| **ENV_EXCLUDED** | **環境/基礎設施因素**（如無 SIM 卡導致 WWAN 失敗）。 | 黃色 | **不計入**（視為豁免） |
+
+> [!NOTE]
+> 透過修改此 YAML 檔案，你可以「免寫代碼」直接調整某個測試項目是否應該阻礙 Release。例如：若實驗室環境暫時無法測試 GPS，可將 GPS 設為 `ENV_EXCLUDED`，避免其拖累總通過率。
+
 ---
 
-### 3. SSH 遠程觸發 (Test Server 受理端)
-針對 Jenkins 或外部主機主動觸發測試，使用 `trigger_job.py` 進入點：
+### 3. CI 調度中心 (`trigger_job.py`)
+這是 Jenkins/SSH 遠端觸發的核心進入點，負責搜尋 Image、搬運、執行與回傳。
+
+#### 核心參數說明
+- **`--build <ID>`**: 
+  - **Daily**: 使用日期時間戳記 (例如 `202604210433`)。
+  - **Release**: 使用正式版本號。**[智慧匹配]**：支援簡短版本號 (例如輸入 `02.01.06` 可自動匹配 `REL_02.01.06.N.260310`)。*注意：輸入的字串將直接決定 Workspace 與報表的命名。*
+- **`--source <daily|release>`**: 指定搜尋來源目錄。
+- **`--type <user|userdebug>`**: 指定編譯類型（預設為 `user`）。
+- **`--remote-path <path>`**: **[重要]** 若提供此參數，系統將跳過搜尋，直接使用該路徑的 Image。支援遠端 Share 路徑或 Test Server 本地路徑。
+- **`--sku <gms|china>`**: 指定產品 SKU（預設為 `gms`）。
+- **`--check-only`**: (Optional) 僅進行連線、路徑與磁碟空間檢查，不執行實際燒錄與測試。
+
+#### 使用範例
+
+**情境 A: 遠端 CI 自動化模式 (由 Build Server 透過 SSH 發動)**
+這是 CI 管道的最常用模式，透過帶入 Image Server 的絕對路徑來觸發：
+
 ```bash
-python3 trigger_job.py --build 02.01.06 --type user --source release --remote-path /path/to/fastboot.zip
+# 1. GMS Release 範例 (完整版本號模式)
+python3 trigger_job.py --build 02.01.06.260308 --type user --source release --remote-path /media/share/thorpe/Android_15/Release_pega/REL_02.01.06.260308/user/fastboot.zip
+
+# 2. GMS Daily 範例 (時間戳記模式)
+python3 trigger_job.py --build 202604210433 --type user --source daily --remote-path /media/share/thorpe/Android_15/dailybuild/202604210433_thorpe_user/fastboot.zip
+
+# 3. China Release 範例 (包含 .N. 特徵)
+python3 trigger_job.py --build 02.01.06.N.260310 --type user --source release --sku china --remote-path /media/share/thorpe/Android_15/Release_pega/REL_02.01.06.N.260310/user/fastboot.zip
 ```
-該腳本支援：
-1. **路徑注入 (IoC)**：透過 `--remote-path` 接收來自 CI 腳本的絕對路徑。
-2. **自動同步與回傳 (Handback)**：從遠端下載燒錄包，並在測試結束後**自動將 Smoke Test 報告同步回 Image Server**。
-3. **隔離空間**：建立具備高度可追溯性的專屬 Workspace 目錄。
+
+**情境 B: 本地手動 Debug 模式 (Image 已在 Test Server 本地)**
+如果你手邊已有 Image ZIP 並想跑一次完整流程（包含自動重置與 OOBE），可以直接帶入本地路徑：
+```bash
+# 執行本地 Image 測試
+python3 trigger_job.py --build 99999 --type userdebug --source daily --remote-path /home/franck/test_images/fastboot.zip
+
+# 測試完成後，執行預覽工具查看信件發送預期
+python3 preview_notification.py
+```
 
 ---
 
@@ -138,6 +188,14 @@ python3 trigger_job.py --build 02.01.06 --type user --source release --remote-pa
 - `--build <version>`: 指定編譯版本（用於報表命名）。**[手動測試可省略，自動從機台偵測]**
 - `--type <user|userdebug>`: 指定編譯類型。**[手動測試可省略，自動從機台偵測]**
 
-### 5. 查看報告
+### 5. 智慧郵件預覽工具
+在正式發送 CI 通知前，可以使用預覽工具檢查信件格式與路徑判定：
+```bash
+python3 preview_notification.py
+```
+該工具會讀取 `test_summary.json` 並自動辨識 GMS/China 與 Daily/Release 模板。
+
+### 6. 查看報告
 - **主動執行**：報告產生成於 `reports/`。
 - **SSH 觸發**：報告產生成於 `workspaces/完整版本號_type/report/`。
+- **智慧清理**：系統會保留最近 4 份測試（保留份數可於 `configs/monitor_config.yaml` 的 `max_retention_zips` 修改），清理時會刪除巨大的 ZIP 與解壓資料夾，但精確保留 `report/` 與 `artifacts/` 以供回溯。

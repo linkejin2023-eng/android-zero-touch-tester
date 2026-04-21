@@ -1,46 +1,22 @@
-# AI Agent & Internal Skills
-.agent/
-.agents/
-.gemini/
-skills-lock.json
-
-# Python Cache
+# Python cache
 __pycache__/
 *.py[cod]
-*$py.class
+*.class
 
-# Virtual environments
-.env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-
-# Logs & Error Reports
-*.log
-crash.log
-bugreport*.zip
-nohup.out
-
-# Auto-generated Test Reports
-# 如果希望把舊報告留存，但不想全部傳到 GitHub，可以取消註解底下這行
-reports/*.html
-
-# IDE & OS files
-.vscode/
-.idea/
-.DS_Store
-Thumbs.db
-
-# Release Candidate Images for Validation (Flash before official release)
-backup_image/
-
-# Unfinished / Temp Flash Work
-temp_extracted/
-*_tmp.json
-
-# Test workspaces and transient scripts
+# Test artifacts & Workspaces
 workspaces/
-scripts/
+reports/
+reports_debug/
+test_summary.json
+monitor/history.db
+*.log
+*.xml
+*.txt
+
+# IDE & Tools
+.vscode/
+.agent/
+.idea/
+
+# Local backup (Optional)
+backup_image/

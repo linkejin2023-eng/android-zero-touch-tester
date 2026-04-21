@@ -24,20 +24,34 @@ get_branch_name() {
 send_smoke_test_report () {
     local variant=$1
     local timestamp=$2
-    local status=$3
-    local branch=$4
+    local code=$3
+    local json_data="$4"
+    local branch=$5
     local SKU="China"
     
-    local status_tag="SUCCESS"
-    [ "$status" == "FAILED" ] && status_tag="FAILURE"
+    # 解析 JSON 數據
+    local status=$(echo "$json_data" | python3 -c "import sys, json; print(json.load(sys.stdin).get('status', 'UNKNOWN'))")
+    local pass_rate=$(echo "$json_data" | python3 -c "import sys, json; print(json.load(sys.stdin).get('stats', {}).get('pass_rate', 'N/A'))")
+    local failed_list=$(echo "$json_data" | python3 -c "import sys, json; data=json.load(sys.stdin); print('\n'.join([f'- {c[\"category\"]} > {c[\"test_name\"]}' for c in data.get('failed_cases', [])]))")
+    local env_list=$(echo "$json_data" | python3 -c "import sys, json; data=json.load(sys.stdin); print('\n'.join([f'- {c[\"category\"]} > {c[\"test_name\"]}' for c in data.get('env_excluded_cases', [])]))")
 
+    # 決定主旨狀態標籤
+    local status_tag="[$status]"
+    if [ "$status" == "INFRA_ERROR" ]; then
+        status_tag="[CRITICAL: $status]"
+    elif [ "$status" == "SUCCESS" ]; then
+        # 檢查是否有豁免項目
+        local exempt_count=$(echo "$json_data" | python3 -c "import sys, json; print(json.load(sys.stdin).get('stats', {}).get('exempt', 0))")
+        if [ "$exempt_count" -gt 0 ]; then
+            status_tag="[SUCCESS (Exempted)]"
+        fi
+    fi
     local variant_cap="User"
     [ "$variant" == "userdebug" ] && variant_cap="Userdebug"
 
-    # [主旨] [STATUS] Project Activity: ID (SKU/Variant) - Smoke Test: RESULT
-    local mail_title="[$status_tag][Thorpe_A15] Daily Build: $timestamp ($SKU/$variant_cap) - Smoke Test: $status"
+    # [主旨] [STATUS][Project] Daily Build: ID (SKU/Variant) - Smoke Test: RESULT
+    local mail_title="$status_tag[Thorpe_A15] Daily Build: $timestamp ($SKU/$variant_cap) - Smoke Test: $status"
     
-    # [路徑轉義修正] 使用從腳本抓到的真實 branch 建立 UNC 連結
     local win_root="\\\\\\\\10.192.188.16\\share\\\\thorpe\\\\Android_15\\\\dailybuild"
     local remote_path="${win_root}\\\\${timestamp}_${branch}_${variant}_a15_nogms"
 
@@ -50,11 +64,21 @@ send_smoke_test_report () {
     content+="- Ident:    ${timestamp}\n"
     content+="- SKU:      ${SKU}\n"
     content+="- Variant:  ${variant_cap}\n\n"
-    content+="Smoke Test Status: ${status}\n"
+    content+="Smoke Test Status: ${status} (Pass Rate: ${pass_rate})\n"
     content+="------------------------------------------------------------\n"
-    content+="Note: This version has passed all core functional tests.\n"
-    content+="Environmental items (GPS/NFC/WiFi Association) are excluded from\n"
-    content+="overall status due to site signal instability.\n"
+    
+    if [ ! -z "$failed_list" ]; then
+        content+="Critical Failures:\n${failed_list}\n\n"
+    fi
+    
+    if [ ! -z "$env_list" ]; then
+        content+="Environmental Exclusions:\n${env_list}\n"
+        content+="Note: These items are excluded from overall status due to environment.\n"
+    fi
+    
+    if [ "$status" == "SUCCESS" ]; then
+        content+="Note: This version has passed all core functional tests.\n"
+    fi
     content+="============================================================\n"
     
     echo -e "$content" | mutt -s "$mail_title" -- "$MEMBERS"
@@ -71,12 +95,13 @@ trigger_remote_test () {
     local remote_path="$IMAGE_ROOT/${timestamp}_${branch}_${variant}_a15_nogms/fastboot.zip"
     
     (
-        ssh $REMOTE_TEST_USER@$TEST_SERVER "cd $REMOTE_TEST_DIR && ./.venv/bin/python3 trigger_job.py --build $timestamp --type $variant --source daily --sku nogms --remote-path $remote_path"
-        if [ $? -eq 0 ]; then
-            send_smoke_test_report "$variant" "$timestamp" "PASS" "$branch"
-        else
-            send_smoke_test_report "$variant" "$timestamp" "FAILED" "$branch"
-        fi
+        ssh $REMOTE_TEST_USER@$TEST_SERVER "cd $REMOTE_TEST_DIR && ./.venv/bin/python3 trigger_job.py --build $timestamp --type $variant --source daily --sku china --remote-path $remote_path"
+        local exit_code=$?
+        
+        # 抓取測試摘要 JSON
+        local summary_json=$(ssh $REMOTE_TEST_USER@$TEST_SERVER "cat $REMOTE_TEST_DIR/test_summary.json")
+        
+        send_smoke_test_report "$variant" "$timestamp" "$exit_code" "$summary_json" "$branch"
     ) &
 }
 

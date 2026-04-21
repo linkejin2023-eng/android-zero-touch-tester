@@ -17,6 +17,7 @@ ACCESSORY_SEND_HID_EVENT = 57
 AOA_VID = 0x18D1
 AOA_PID_ACC = 0x2D00
 AOA_PID_ACC_ADB = 0x2D01
+AOA_PID_RECOVERY = 0xD001 # Standard Android Recovery PID
 
 # Trimble T70 specific IDs
 TRIMBLE_VID = 0x099e
@@ -31,8 +32,11 @@ class AOADriver:
         self.device = None
         self.handle = None
 
-    def find_device(self, vid=None, pid=None):
+    def find_device(self, vid=None, pid=None, allow_recovery=False):
         """Finds the Android device based on VID/PID or common patterns."""
+        # Force clear previous handle to avoid stale references/Errno 19
+        self.device = None
+        
         # First, check if already in Accessory mode
         logging.info("Checking if device is already in Accessory Mode...")
         self.device = usb.core.find(idVendor=AOA_VID)
@@ -40,35 +44,48 @@ class AOADriver:
             logging.info(f"Device found in Accessory Mode: {hex(self.device.idVendor)}:{hex(self.device.idProduct)}")
             return True
 
-        # Prioritize Trimble devices if no specific VID/PID is given
+        # Prioritize known T70 VID:PID pairs if no specific override
         if not vid and not pid:
-            logging.info("Prioritizing search for Trimble devices...")
-            for p in TRIMBLE_PIDS:
-                self.device = usb.core.find(idVendor=TRIMBLE_VID, idProduct=p)
+            logging.info("Prioritizing search for Trimble T70 devices...")
+            # (VID, PID) pairs for various T70 modes
+            targets = [
+                (TRIMBLE_VID, 0x02b1), # Standard OOBE
+                (TRIMBLE_VID, 0x02b5), # ADB
+                (QUALCOMM_VID, 0x901d) # Userdebug/Diag (0x05c6)
+            ]
+            for v_target, p_target in targets:
+                self.device = usb.core.find(idVendor=v_target, idProduct=p_target)
                 if self.device:
-                    logging.info(f"Found Trimble device: {hex(TRIMBLE_VID)}:{hex(p)}")
+                    logging.info(f"Found T70 device: {hex(v_target)}:{hex(p_target)}")
                     return True
 
         if vid and pid:
             logging.info(f"Looking for specific device {hex(vid)}:{hex(pid)}...")
             self.device = usb.core.find(idVendor=vid, idProduct=pid)
         else:
-            logging.info("Scanning for any Android device...")
-            # Common Android VIDs: Google (0x18d1), Samsung (0x04e8), Trimble (0x099e), etc.
-            # We can search for devices with USB_CLASS_COMM (0x02) or other specific descriptors
-            # For now, we rely on the specific VID/PID provided by user or common ones
+            logging.info("Scanning for any compatible Android device...")
+            # Use find_all to handle multiple devices with same VID
             vids = [0x18D1, 0x099E, 0x05C6, 0x04E8, 0x0BB4, 0x22B8, 0x1949]
             for v in vids:
-                self.device = usb.core.find(idVendor=v)
-                if self.device:
-                    # 如果是 Qualcomm VID，額外確認 PID 是否在 Trimble 範疇內
-                    if v == QUALCOMM_VID and self.device.idProduct not in TRIMBLE_PIDS:
-                        self.device = None
+                devices = usb.core.find(find_all=True, idVendor=v)
+                for dev in devices:
+                    # Skip devices in recovery mode unless explicitly allowed
+                    if dev.idProduct == AOA_PID_RECOVERY and not allow_recovery:
                         continue
+                        
+                    # If Qualcomm VID, enforce PID check to avoid unrelated Diag ports
+                    if v == QUALCOMM_VID:
+                        if dev.idProduct in TRIMBLE_PIDS:
+                            self.device = dev
+                            break
+                    else:
+                        self.device = dev
+                        break
+                if self.device:
                     break
         
         if not self.device:
-            logging.error("No Android device found.")
+            logging.error("No Android device found on USB bus.")
             return False
         
         logging.info(f"Connected to device: {hex(self.device.idVendor)}:{hex(self.device.idProduct)}")
@@ -84,19 +101,30 @@ class AOADriver:
             logging.info("Device is already in Accessory Mode.")
             return True
 
-        # 1. Get Protocol
+        # 1. Clear resources and set configuration to resolve stale PID/Pipe issues
         try:
-            protocol = self.device.ctrl_transfer(
-                usb.util.CTRL_TYPE_VENDOR | usb.util.CTRL_IN,
-                ACCESSORY_GET_PROTOCOL, 0, 0, 2
-            )
-            proto_ver = protocol[0] | (protocol[1] << 8)
-            logging.info(f"AOA Protocol version: {proto_ver}")
-            if proto_ver < 2:
-                logging.error("Device does not support AOA 2.0 (Required for HID)")
-                return False
-        except Exception as e:
-            logging.error(f"Failed to get AOA protocol: {e}")
+            usb.util.dispose_resources(self.device)
+            # self.device.set_configuration() # Optional, some devices might fail here
+            time.sleep(0.5)
+        except: pass
+
+        # 2. Get Protocol (with retries for Recovery mode stability)
+        proto_ver = 0
+        for attempt in range(5):
+            try:
+                protocol = self.device.ctrl_transfer(
+                    usb.util.CTRL_TYPE_VENDOR | usb.util.CTRL_IN,
+                    ACCESSORY_GET_PROTOCOL, 0, 0, 2
+                )
+                proto_ver = protocol[0] | (protocol[1] << 8)
+                logging.info(f"AOA Protocol version: {proto_ver} (Attempt {attempt+1})")
+                break
+            except Exception as e:
+                logging.warning(f"AOA Protocol handshake failed (Attempt {attempt+1}/5): {e}")
+                time.sleep(2)
+        
+        if proto_ver < 2:
+            logging.error(f"Device does not support AOA 2.0 (Got version: {proto_ver})")
             return False
 
         # 2. Send Metadata Strings
@@ -163,8 +191,10 @@ class AOADriver:
         """Sends a HID event (report) to the Android device with retry logic."""
         for attempt in range(retries):
             if not self.device:
-                logging.error("No device handle available for HID event.")
-                return False
+                logging.warning("No device handle available for HID event. Attempting to reconnect...")
+                if not self.find_device():
+                    logging.error("Failed to recover device handle.")
+                    return False
             try:
                 self.device.ctrl_transfer(
                     usb.util.CTRL_TYPE_VENDOR | usb.util.CTRL_OUT,
