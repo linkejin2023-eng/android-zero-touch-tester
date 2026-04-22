@@ -12,18 +12,17 @@
 ## 2. 目前已開發功能與實現進度 (Developed Features & Progress)
 專案採階段性開發，目前已完成 **Phase 1 (核心基準) 與 Phase 2 (進階模組)**，總計 29 項關鍵測試點。
 
-### 📊 第一階段 & 第二階段完成度：100%
-此部分已在實機上驗證，無須人工介入即可**約在 82 秒內完成掃描**：
-1.  **System / Framework**：自動 ADB 連線驗證、UIAutomator 後台守護進程自動注入與連線。
-2.  **Display**：螢幕亮度調整 (Settings API)、實體電源鍵 Suspend (休眠) 與 Resume (喚醒) 模擬及驗證。
-3.  **Audio**：Audio Service 啟動狀態、Audio HAL 掛載檢查、Media Volume 調整控制與 `dumpsys audio` 提取。
-4.  **Camera**：Camera HAL 可用性、App 前景啟動。且具備防呆機制，能自動透過 `pm grant` 處理權限對話框，或使用 UIAutomator 閃避 `settings.intelligence` 意圖選擇器 (Disambiguation Popup)。
-5.  **Connectivity**：WiFi 開關、自動連線指定 AP 並等候 DHCP 配發 IP 驗證；Bluetooth 開關 (`bluetooth_on`) 狀態校驗。
-6.  **Sensors / Power**：Accelerometer、Gyro、Light Sensor、e-Compass 驅動層狀態檢查 (`dumpsys sensorservice`)；電池電量讀取與 AC 拔插斷電事件模擬 (`dumpsys battery set ac 0`)。
-7.  **Touchscreen**：觸控 Input Device 列舉檢查 (`getevent -l` 對應)、四向滑動手勢 (Swipe / Drag) 模擬與 UI 回應校驗。
-8.  **HouseKeeper / System App**：LED 指示燈狀態檢查 (`dumpsys lights`)、發送鬧鐘設定 Intent 驗證。
-9.  **Hardware Buttons**：長按 Power Key 呼叫電源選單 (Power Menu) 驗證、Keypad 實體按鍵 (數字 0-9、方向鍵、Del) 訊號路由 (Routing) 正確性。
-10. **NFC & Location**：NFC 底層服務啟動校驗 (`svc nfc enable`)；GPS/GNSS Location Provider 註冊狀態檢查。
+### 📊 第一階段至第三階段完成度：100% (工業級穩固)
+此部分已在實機與 CI 環境驗證，具備高強韌性：
+1.  **System / Framework**：自動 ADB 連線、UIAutomator 注入。
+2.  **Display & Touch**：休眠喚醒、四向滑動與 UI 回應校驗。
+3.  **Audio / Camera / Connectivity**：硬體存活分析 (Entropy)、防劫持導航與 AP 自動連線。
+4.  **Sensors / Power / NFC**：感測器方差分析、電池事件模擬與底層服務核驗。
+5.  **工業化加固 (Phase 3)**：
+    *   **自癒導航**：解決 Factory Reset 被第三方 App 劫持的問題。
+    *   **資源管理**：Workspace 自動清理與報告持久化。
+    *   **CI 報警**：全路徑 `INFRA_ERROR` 診斷與電子郵件精英化。
+    *   **SOP 技能化**：建立 `.agent/skills` 標準化提交工作流。
 
 ### 🔄 報告產出：
 每個階段的結果都會被實時蒐集，自動編譯為一份帶有時間戳記的 `.html` 檔案 (例如 `sanity_report_20260306_100716.html`)，內含綠色/紅色清楚的 Pass/Fail 統計與細節紀錄。

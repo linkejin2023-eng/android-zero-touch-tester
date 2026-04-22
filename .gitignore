@@ -16,6 +16,8 @@ monitor/history.db
 # IDE & Tools
 .vscode/
 .agent/
+!.agent/skills/
+.agents/
 .idea/
 
 # Local backup (Optional)

@@ -1,7 +1,7 @@
 # 專案當前狀態 (Project Status)
 
 ## 最後更新
-2026-04-21 17:30
+2026-04-22 11:30
 
 ## 專案進度概覽 (Overall Progress)
 - **核心框架 (Core Framework)**: 100% (完結)
@@ -25,6 +25,7 @@
 - [x] **#20 Factory Reset 防劫持機制**: 已完成 (Google Maps 強制關閉與導航修正)。
 - [x] **#21 全路徑報警覆蓋**: 已完成 (INFRA_ERROR 標籤)。
 - [x] **#22 智慧預覽工具**: 已完成 (preview_notification.py)。
+- [x] **#24 流程工業化與技能部署**: (2026-04-22 已完成) 建立 before-push SOP 技能。
 
 ---
 
