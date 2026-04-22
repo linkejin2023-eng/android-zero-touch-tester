@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.4] - 2026-04-22
+### 流程規範強化 (Workflow Optimization)
+- **提交審核機制升級**：將 `git add` 提前至 Review 階段，強制展示 `git status`，確保使用者能同時檢查暫存檔案與 Untracked 的 Debug 產物。
+- **引入 Human-in-the-loop 核決點**：明確定義 Phase 3 為「停止點」，禁止 AI 在未獲得明確指令前進行 Commit/Push 操作。
+
+---
+
 ## [2.2.3] - 2026-04-22
 ### 流程工業化 (Workflow Industrialization)
 - **導入 Antigravity 技能系統**：建立 `.agent/skills/before-push/` 工作流，將「文檔保護」、「進度核對」與「提交流程」標準化為 AI 技能。
