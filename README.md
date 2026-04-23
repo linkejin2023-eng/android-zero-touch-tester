@@ -133,6 +133,19 @@ python3 trigger_job.py --build 20260421 --type user --source daily --remote-path
 > [!NOTE]
 > 透過修改此 YAML 檔案，你可以「免寫代碼」直接調整某個測試項目是否應該阻礙 Release。例如：若實驗室環境暫時無法測試 GPS，可將 GPS 設為 `ENV_EXCLUDED`，避免其拖累總通過率。
 
+### 4. 感測器工業級診斷 (Sensor 10-Point Health Check)
+針對 Android 系統在機台靜置 (Static) 時會過濾感測器數據的特性，本框架採用以下技術確保「零誤報」：
+
+#### 核心判定邏輯
+1.  **Event Buffer Matching (緩衝區飽和度判定)**: 
+    - **原理**: `dumpsys sensorservice` 會保留最後 N 筆事件。若機台完全靜止，數據方差 (Variance) 可能為 0。
+    - **邏輯**: 若 Variance < 門檻，但事件緩衝區已填滿 (例如 10/10 筆或 50/50 筆)，則判定感測器「活耀且正常」，僅是數據未產生物理位移。
+2.  **Proxy Mapping (代理映射機制)**:
+    - **背景**: 部分系統日誌會屏蔽 `raw Gyro`。
+    - **解決方案**: 自動將檢測代理至 `Rotation Vector` (由 Gyro/Mag/Accel 融合)。若融合數據有輸出，反向證明物理感測器運作正常。
+3.  **Active Awakening (主動喚醒)**:
+    - 測試期間自動啟動 `Google Maps` 並執行併發滑動 (Jitter)，強制觸發系統 Fusion Sensor 更新，確保日誌中存在 live events。
+
 ---
 
 ### 3. CI 調度中心 (`trigger_job.py`)

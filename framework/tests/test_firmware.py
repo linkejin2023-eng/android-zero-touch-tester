@@ -28,9 +28,12 @@ def run_tests(ui: UIHelper, reporter, validations=None):
             try:
                 logging.info(f"Attempting extraction via: {extractor.get('type')}")
                 actual_val = execute_extractor(ui, extractor)
-                if actual_val:
+                if actual_val and "timeout" not in str(actual_val).lower() and "error" not in str(actual_val).lower():
                     logging.info(f"Extracted value: {actual_val} via {extractor.get('type')}")
                     break
+                else:
+                    logging.warning(f"Extractor {extractor.get('type')} returned invalid value: {actual_val}, trying next...")
+                    actual_val = None
             except Exception as e:
                 logging.warning(f"Extractor {extractor.get('type')} failed for {name}: {e}")
         

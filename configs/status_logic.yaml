@@ -42,9 +42,11 @@ items:
   - { category: "Sensors", name: "Accelerometer (Presence)", level: "PARTIAL" }
   - { category: "Sensors", name: "Gyroscope (Presence)", level: "PARTIAL" }
   - { category: "Sensors", name: "Magnetometer (Presence)", level: "PARTIAL" }
+  - { category: "Sensors", name: "e-Compass (Presence)", level: "PARTIAL" }
   - { category: "Sensors", name: "Accelerometer (Entropy)", level: "PARTIAL" }
   - { category: "Sensors", name: "Gyroscope (Entropy)", level: "PARTIAL" }
-  - { category: "Sensors", name: "e-Compass (Presence)", level: "PARTIAL" }
+  - { category: "Sensors", name: "Magnetometer (Entropy)", level: "PARTIAL" }
+  - { category: "Sensors", name: "e-Compass (Entropy)", level: "PARTIAL" }
 
   # --- Power ---
   - { category: "Power", name: "Battery Read", level: "PARTIAL" }

@@ -5,12 +5,17 @@ modules:
   audio: true
   camera: true
   connectivity: true
-  sensors_power: true
-  sensors_advanced: true
+  sensors: true
+  power: true
   nfc: true
   gps: true
   firmware: true
   auto_factory_reset: true
+
+# --- Network Config ---
+network:
+  wifi_ssid: "Xiaomi_test"
+  wifi_pass: "12345678"
 
 # --- Thresholds ---
 audio_entropy_threshold: 0.1

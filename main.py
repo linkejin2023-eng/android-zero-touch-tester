@@ -6,8 +6,8 @@ import yaml
 from framework.adb_helper import wait_for_device, get_system_property, run_adb_cmd
 from framework.ui_automator import UIHelper
 from framework.report_generator import HTMLReportGenerator
-from framework.tests import test_audio, test_camera, test_connectivity, test_sensors_power
-from framework.tests import test_sensors_advanced, test_nfc, test_gps, test_reboot, test_lifecycle, test_firmware
+from framework.tests import test_audio, test_camera, test_connectivity
+from framework.tests import test_sensors, test_nfc, test_gps, test_reboot, test_lifecycle, test_firmware
 
 from framework.flash_manager import FlashManager
 
@@ -284,12 +284,10 @@ def main():
                                         password=net_config.get("wifi_pass"),
                                         specs=hw_specs,
                                         selectors=ui_selectors)
-        if should_run("sensors_power"):
-            test_sensors_power.run_tests(ui, reporter)
-        
-        # Phase 2
-        if should_run("sensors_advanced"):
-            test_sensors_advanced.run_tests(ui, reporter)
+        if should_run("sensors"):
+            test_sensors.run_sensors_tests(ui, reporter)
+        if should_run("power"):
+            test_sensors.run_power_tests(ui, reporter)
         if should_run("nfc"):
             test_nfc.run_tests(ui, reporter)
         if should_run("gps"):

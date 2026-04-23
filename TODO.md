@@ -26,6 +26,7 @@
 - [x] **#21 全路徑報警覆蓋**: 已完成 (INFRA_ERROR 標籤)。
 - [x] **#22 智慧預覽工具**: 已完成 (preview_notification.py)。
 - [x] **#24 流程工業化與技能部署**: (2026-04-22 已完成) 建立 before-push SOP 技能。
+- [x] **#25 10 點感測器工業診斷**: (2026-04-23 已完成) 實作 Accel, Gyro, Mag, Compass, Light 完整檢測與 Event Buffer Matching 判定邏輯。
 
 ---
 

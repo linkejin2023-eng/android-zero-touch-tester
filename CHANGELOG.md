@@ -1,5 +1,34 @@
 # Changelog
 
+## [02.02.01-Final] - 2026-04-23
+### Added
+- **10 點感測器工業診斷**: 實作 Accelerometer (加速計), Gyroscope (陀螺儀), Magnetometer (磁力計), e-Compass (羅盤), Light Sensor (光感測器) 之 Presence 與 Entropy 完整檢測。
+- **緩衝區飽和度判定 (Event Buffer Matching)**: 針對 T70 融合感測器日誌特性，透過檢查事件緩衝區是否填滿 (10/10 筆) 來判定感測器活耀度，解決機台靜置時方差為 0 的誤報。
+- **感測器代理機制**: 針對 T70 系統日誌屏蔽 raw Gyro 的問題，自動切換至 Rotation Vector 進行交叉驗證。
+
+---
+
+## [2.2.6] - 2026-04-22
+### 感測器診斷強化與架構優化 (Enhanced Sensor Diagnostics)
+- **8 點感測器檢測計畫**：
+  - 針對 Accelerometer, Gyroscope, Magnetometer, e-Compass 四大單元，分別強制執行 `Presence` (驅動存在) 與 `Entropy` (數據方差) 獨立測試。
+  - 徹底解決 Magnetometer 與 e-Compass 的重疊混淆問題，提供更細緻的硬體健康報告。
+- **配置一致性與連線修復**：
+  - 補回 `config.yaml` 的 WiFi 連線配置 (`Xiaomi_test`)。
+  - 恢復 `Power` 獨立測試模組，保留 `Battery Read` 功能。
+- **代碼整合**：完成 `test_sensors.py` 的整合開發，移除舊版冗餘檔案。
+
+---
+
+## [2.2.5] - 2026-04-22
+### 穩定性加固 (Stability Enhancement)
+- **Firmware 提取容錯優化**：修正了 `test_firmware.py` 在提取器超時（Timeout）時會誤判為有效值並中斷後續嘗試的 Bug。現在系統會自動過濾異常字串並嘗試下一個備用提取器。
+- **Touch IC 驗證韌性提升**：
+  - 將 `configs/build_info.json` 中的 UI 提取器設為第一優先順序，大幅降低對 Logcat 的依賴。
+  - 優化 Logcat 掃描效能，將掃描範圍從全量緩衝區壓縮至最後 2000 行，徹底解決 Timeout 問題。
+
+---
+
 ## [2.2.4] - 2026-04-22
 ### 流程規範強化 (Workflow Optimization)
 - **提交審核機制升級**：將 `git add` 提前至 Review 階段，強制展示 `git status`，確保使用者能同時檢查暫存檔案與 Untracked 的 Debug 產物。
