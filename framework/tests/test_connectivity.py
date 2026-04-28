@@ -7,7 +7,8 @@ import logging
 WIFI_SSID = "Xiaomi_test"
 WIFI_PASS = "0987654321"
 
-def run_tests(ui: UIHelper, reporter: HTMLReportGenerator, ssid=None, password=None, specs=None, selectors=None):
+def run_tests(ui: UIHelper, reporter: HTMLReportGenerator, ssid=None, password=None, specs=None, selectors=None, excluded=None):
+    if not excluded: excluded = []
     logging.info("Running Connectivity Tests (WiFi/BT)...")
     
     if not specs: specs = {}
@@ -46,89 +47,83 @@ def run_tests(ui: UIHelper, reporter: HTMLReportGenerator, ssid=None, password=N
         default_route_wlan = "default via" in route_out and "dev wlan0" in route_out
         has_other_default = "default via" in route_out and "dev wlan0" not in route_out
         
-        if not has_wwan_ip and not has_other_default:
-            reporter.add_result("Connectivity", "Mutual Exclusivity", True, "Verified: No active WWAN routes, clean routing table.")
+        if "Mutual Exclusivity" not in excluded:
+            if not has_wwan_ip and not has_other_default:
+                reporter.add_result("Connectivity", "Mutual Exclusivity", True, "Verified: No active WWAN routes, clean routing table.")
+            else:
+                msg = "Warning: Parallel routes detected."
+                if has_wwan_ip: msg += " WWAN IP still active."
+                if has_other_default: msg += " Non-WiFi default gateway found."
+                reporter.add_result("Connectivity", "Mutual Exclusivity", False, msg)
         else:
-            msg = "Warning: Parallel routes detected."
-            if has_wwan_ip: msg += " WWAN IP still active."
-            if has_other_default: msg += " Non-WiFi default gateway found."
-            reporter.add_result("Connectivity", "Mutual Exclusivity", False, msg)
+            reporter.add_result("Connectivity", "Mutual Exclusivity", True, "Skipped by profile", status_override="SKIP")
 
-        # Enable WiFi via cmd wifi
-        run_adb_cmd("svc wifi enable")
-        time.sleep(3)
-        _, wifi_on_init = run_adb_cmd("settings get global wifi_on")
-        
-        if wifi_on_init.strip() == "1":
-            reporter.add_result("Connectivity", "WiFi Enable", True, "Successfully enabled WiFi")
+        # WiFi Enable Test
+        if "WiFi Enable" not in excluded:
+            run_adb_cmd("svc wifi enable")
+            time.sleep(3)
+            _, wifi_on_init = run_adb_cmd("settings get global wifi_on")
+            if wifi_on_init.strip() == "1":
+                reporter.add_result("Connectivity", "WiFi Enable", True, "Successfully enabled WiFi")
+            else:
+                reporter.add_result("Connectivity", "WiFi Enable", False, "WiFi failed to enable (settings check)")
         else:
-            reporter.add_result("Connectivity", "WiFi Enable", False, "WiFi failed to enable (settings check)")
-            
+            reporter.add_result("Connectivity", "WiFi Enable", True, "Skipped by profile", status_override="SKIP")
+
         # --- 1. WiFi Scanning (Visibility Check) ---
-        logging.info("Scanning for WiFi Access Points (Up to 15s)...")
-        run_adb_cmd("cmd wifi start-scan")
-        
-        found_aps = []
-        for _ in range(3):
-            time.sleep(5)
-            _, scan_out = run_adb_cmd("cmd wifi list-scan-results")
-            
+        if "WiFi Scanning" not in excluded:
+            logging.info("Scanning for WiFi Access Points (Up to 15s)...")
+            run_adb_cmd("cmd wifi start-scan")
             found_aps = []
-            for line in scan_out.strip().split('\n'):
-                parts = line.split()
-                if len(parts) >= 5 and ":" in parts[0]: 
-                    ssid = " ".join(parts[4:]).strip()
-                    # Clean up common flags if trailing
-                    if "[ESS]" in ssid: ssid = ssid.split("[ESS]")[0].strip()
-                    if ssid and ssid not in found_aps:
-                        found_aps.append(ssid)
-            
-            if target_ssid and target_ssid in found_aps:
-                logging.info(f"Target SSID {target_ssid} found early in scan!")
-                break
-                
-        if found_aps:
-            reporter.add_result("Connectivity", "WiFi Scanning", True, f"Found {len(found_aps)} nearby Access Points: {', '.join(found_aps[:3])}")
+            for _ in range(3):
+                time.sleep(5)
+                _, scan_out = run_adb_cmd("cmd wifi list-scan-results")
+                found_aps = []
+                for line in scan_out.strip().split('\n'):
+                    parts = line.split()
+                    if len(parts) >= 5 and ":" in parts[0]: 
+                        ssid = " ".join(parts[4:]).strip()
+                        if "[ESS]" in ssid: ssid = ssid.split("[ESS]")[0].strip()
+                        if ssid and ssid not in found_aps: found_aps.append(ssid)
+                if target_ssid and target_ssid in found_aps: break
+            if found_aps:
+                reporter.add_result("Connectivity", "WiFi Scanning", True, f"Found {len(found_aps)} nearby Access Points: {', '.join(found_aps[:3])}")
+            else:
+                reporter.add_result("Connectivity", "WiFi Scanning", False, "No nearby WiFi Access Points detected")
         else:
-            reporter.add_result("Connectivity", "WiFi Scanning", False, "No nearby WiFi Access Points detected")
+            reporter.add_result("Connectivity", "WiFi Scanning", True, "Skipped by profile", status_override="SKIP")
 
         # --- 2. WiFi Association (Connection Check) ---
-        if target_ssid and target_pass:
-            logging.info(f"Attempting unconditional connection to AP: {target_ssid} (Max 30s)...")
-            run_adb_cmd(f'cmd wifi connect-network "{target_ssid}" wpa2 "{target_pass}"')
-            
-            ip = None
-            last_status = "Unknown"
-            # Robust Loop: Handling slow DHCP on distant APs
-            for i in range(90):
-                time.sleep(1)
-                # Use cmd wifi status for detailed reporting
-                _, status_out = run_adb_cmd("cmd wifi status")
-                last_status = status_out.strip()
-                
-                # Modern IP detection via ip addr (supports all Android versions)
-                import re
-                _, out_ip = run_adb_cmd("ip -f inet addr show wlan0")
-                match = re.search(r'inet\s+(\d+\.\d+\.\d+\.\d+)', out_ip)
-                if match:
-                    ip = match.group(1)
-                    break
-                
-                # Signal Diagnostics: Log every 3 seconds to analyze distanced router issues
-                if i % 3 == 0:
-                    rssi_m = re.search(r'RSSI:\s+(-?\d+)', last_status)
-                    speed_m = re.search(r'Link speed:\s+(\d+Mbps)', last_status)
-                    rssi = rssi_m.group(1) if rssi_m else "N/A"
-                    speed = speed_m.group(1) if speed_m else "N/A"
-                    
-                    logging.info(f"Waiting for IP ({i}/90s)... Signal: {rssi}dBm | Speed: {speed} | Status: {last_status[:40]}...")
-
-            if ip:
-                reporter.add_result("Connectivity", "WiFi AP Connection", True, f"Connected to {target_ssid} (IP: {ip})")
+        if "WiFi AP Connection" not in excluded:
+            if target_ssid and target_pass:
+                logging.info(f"Attempting unconditional connection to AP: {target_ssid} (Max 30s)...")
+                run_adb_cmd(f'cmd wifi connect-network "{target_ssid}" wpa2 "{target_pass}"')
+                ip = None
+                last_status = "Unknown"
+                for i in range(90):
+                    time.sleep(1)
+                    _, status_out = run_adb_cmd("cmd wifi status")
+                    last_status = status_out.strip()
+                    import re
+                    _, out_ip = run_adb_cmd("ip -f inet addr show wlan0")
+                    match = re.search(r'inet\s+(\d+\.\d+\.\d+\.\d+)', out_ip)
+                    if match:
+                        ip = match.group(1)
+                        break
+                    if i % 3 == 0:
+                        rssi_m = re.search(r'RSSI:\s+(-?\d+)', last_status)
+                        speed_m = re.search(r'Link speed:\s+(\d+Mbps)', last_status)
+                        rssi = rssi_m.group(1) if rssi_m else "N/A"
+                        speed = speed_m.group(1) if speed_m else "N/A"
+                        logging.info(f"Waiting for IP ({i}/90s)... Signal: {rssi}dBm | Speed: {speed} | Status: {last_status[:40]}...")
+                if ip:
+                    reporter.add_result("Connectivity", "WiFi AP Connection", True, f"Connected to {target_ssid} (IP: {ip})")
+                else:
+                    reporter.add_result("Connectivity", "WiFi AP Connection", False, f"Failed to get IP address for {target_ssid}. Last status: {last_status}")
             else:
-                reporter.add_result("Connectivity", "WiFi AP Connection", False, f"Failed to get IP address for {target_ssid}. Last status: {last_status}")
+                reporter.add_result("Connectivity", "WiFi AP Connection", False, "No target SSID/PWD provided in config", status_override="SKIP")
         else:
-            reporter.add_result("Connectivity", "WiFi AP Connection", False, "No target SSID/PWD provided in config", status_override="SKIP")
+            reporter.add_result("Connectivity", "WiFi AP Connection", True, "Skipped by profile", status_override="SKIP")
         
         # --- Robust WiFi Toggle Verification ---
         logging.info("Verifying WiFi 'Disable' functionality...")

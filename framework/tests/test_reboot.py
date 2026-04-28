@@ -4,7 +4,7 @@ from framework.report_generator import HTMLReportGenerator
 import time
 import logging
 
-def run_tests(ui: UIHelper, reporter: HTMLReportGenerator):
+def run_tests(ui: UIHelper, reporter: HTMLReportGenerator, timeout=120):
     logging.info("--- Starting Reboot Stability Test ---")
     
     start_time = time.time()
@@ -19,8 +19,8 @@ def run_tests(ui: UIHelper, reporter: HTMLReportGenerator):
     
     # 3. Wait for reconnect
     logging.info("Waiting for device to reconnect via ADB...")
-    if not wait_for_device(timeout=120):
-        reporter.add_result("System", "Reboot Test", False, "Failed: Device did not return to ADB within 120s")
+    if not wait_for_device(timeout=timeout):
+        reporter.add_result("System", "Reboot Test", False, f"Failed: Device did not return to ADB within {timeout}s")
         return
 
     # 4. Wait for boot completion

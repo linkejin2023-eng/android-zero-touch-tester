@@ -32,8 +32,10 @@ def get_sensor_events(name_filter, dump_content):
                     pass
     return events
 
-def run_sensors_tests(ui, reporter):
+def run_sensors_tests(ui, reporter, specs=None, excluded=None):
+    if not excluded: excluded = []
     """Entry point for Sensors module - Finalized for T70"""
+    if not specs: specs = {}
     logging.info("T70 Sensor Final Activation...")
     run_adb_cmd("am start -a android.intent.action.VIEW -d 'geo:0,0?z=18'")
     time.sleep(3)
@@ -49,18 +51,29 @@ def run_sensors_tests(ui, reporter):
     run_adb_cmd("am force-stop com.google.android.apps.maps")
     run_adb_cmd("am start -c android.intent.category.HOME -a android.intent.action.MAIN")
 
+    # Use threshold from specs if available, fallback to T70 defaults
+    accel_thresh   = specs.get("sensor_accel_threshold", 0.0001)
+    gyro_thresh    = specs.get("sensor_gyro_threshold", 0.000001)
+    mag_thresh     = specs.get("sensor_mag_threshold", 0.01)
+    compass_thresh = specs.get("sensor_compass_threshold", 0.000000001)
+    light_thresh   = specs.get("sensor_light_threshold", 0.0000001)
+
     sensors_to_test = [
-        {"id": "Accelerometer", "keywords": ["Accelerometer"], "threshold": 0.0001},
-        {"id": "Gyroscope",     "keywords": ["Gyroscope", "Rotation Vector"], "threshold": 0.000001},
-        {"id": "Magnetometer",  "keywords": ["Magnetometer"], "threshold": 0.01},
-        {"id": "e-Compass",     "keywords": ["Rotation Vector", "Geomagnetic"], "threshold": 0.000000001},
-        {"id": "Light Sensor",  "keywords": ["Ambient Light", "Light Sensor"], "threshold": 0.0000001}
+        {"id": "Accelerometer", "keywords": ["Accelerometer"], "threshold": accel_thresh},
+        {"id": "Gyroscope",     "keywords": ["Gyroscope", "Rotation Vector"], "threshold": gyro_thresh},
+        {"id": "Magnetometer",  "keywords": ["Magnetometer"], "threshold": mag_thresh},
+        {"id": "e-Compass",     "keywords": ["Rotation Vector", "Geomagnetic"], "threshold": compass_thresh},
+        {"id": "Light Sensor",  "keywords": ["Ambient Light", "Light Sensor"], "threshold": light_thresh}
     ]
     
     for sensor in sensors_to_test:
         ui_name = sensor["id"]
         keywords = sensor["keywords"]
         threshold = sensor["threshold"]
+        
+        if ui_name in excluded:
+            reporter.add_result("Sensors", ui_name, True, "Skipped by profile", status_override="SKIP")
+            continue
         
         has_drv = any(k.lower() in dump_out.lower() for k in keywords)
         reporter.add_result("Sensors", f"{ui_name} (Presence)", has_drv, 

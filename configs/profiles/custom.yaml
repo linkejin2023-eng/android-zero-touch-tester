@@ -1,0 +1,18 @@
+# Environmentally Stable Profile
+# Used for environments where WiFi APs or GPS signals are unstable.
+modules:
+  reboot: true
+  firmware: true
+  audio: false
+  camera: false
+  connectivity: false
+  sensors: false
+  power: false
+  nfc: false
+  gps: false
+  auto_factory_reset: true
+
+exclude_items:
+  - "WiFi AP Connection"
+  - "GPS Antenna Signal"
+  - "Tag Read Verification" # NFC item is now PARTIAL, can be excluded if no tag present

@@ -1,24 +1,57 @@
-# Python cache
+
+# AI Agent & Internal Skills
+.agent/**
+!.agent/skills/
+.agent/skills/**
+!.agent/skills/before-push/
+.agents/
+.gemini/
+skills-lock.json
+
+# Python Cache
 __pycache__/
 *.py[cod]
-*.class
+*$py.class
 
-# Test artifacts & Workspaces
-workspaces/
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Logs & Error Reports
+*.log
+crash.log
+bugreport*.zip
+nohup.out
+
+# Auto-generated Test Artifacts
 reports/
 reports_debug/
-test_summary.json
+workspaces/
 monitor/history.db
-*.log
-*.xml
-*.txt
+test_summary.json
+stress_summary.csv
+stress_summary_fixed.csv
+stress_wwan.sh
+analyze_stress.py
 
-# IDE & Tools
+# Temp & AI Scratch files
+scratch/
+.gemini/
+*~
+.~lock.*
+
+# IDE & OS files
 .vscode/
-.agent/
-!.agent/skills/
-.agents/
 .idea/
+.DS_Store
+Thumbs.db
 
-# Local backup (Optional)
+# Flash artifacts
 backup_image/
+temp_extracted/
+*_tmp.json

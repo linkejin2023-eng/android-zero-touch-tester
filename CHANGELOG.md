@@ -1,10 +1,39 @@
 # Changelog
 
+## [02.03.00-Resilience] - 2026-04-28
+### Added
+- **userdebug 快速通關 (Fast-track Bypass)**: 實作 ADB 早期攔截機制。在 USB 同步迴圈中併發偵測 ADB 與 HID；針對 `userdebug` 裝置，若偵測到 ADB 已連線且 `sys.boot_completed` 就緒，將自動跳過慢速 AOA 模擬流程。
+- **物理標記重置驗證 (Physical Marker Verification)**: 在 Factory Reset 前主動於 `/sdcard/DCIM/Camera` 埋入標記檔案。重置成功判定改為以「資料抹除 (檔案歸零)」為核心指標，徹底解決短時間測試下 Uptime 判定不穩定的痛點。
+
+### Fixed
+- **報表 Profile 注入路徑**: 修正 `main.py` 在報表生成階段無法正確解析 Profile 簡稱（如 `stable_smoke`）的路徑問題，加入智慧路徑補全。
+- **韌體提取穩定性 (Firmware Extraction)**: 優化 Logcat 提取參數。自動將 `logcat -d` 轉換為 `-d -t 5000` 並將 ADB 超時提升至 30s，確保在大 Log 量環境下不發生 Timeout。
+- **OOBE 競態修正**: 在所有透過 ADB 執行 OOBE 跳過的環節中，加入對 `sys.boot_completed` 的強制等待，確保 Android 系統服務就緒後才送出指令。
+
+### Changed
+- **重置判定權重**: 將 Factory Reset 的成功判定從 Uptime 比較調整為檔案抹除檢查。
+
+---
+
+## [02.02.02-Industrial] - 2026-04-24
+### Changed
+- **重大架構解耦 (Major Decoupling)**: 實作「配置優先，代碼保底」策略。將原本硬編碼在測試模組中的 5 種感測器門檻、音訊熵值分析、重啟與相機超時時間全部外遷至 `config.yaml`。
+- **全域配置職責分離**: 清理 `config.yaml` 中的模組開關，明確劃分：`config.yaml` 負責「全域門檻與環境」，`configs/profiles/` 負責「執行範圍」。
+- **移除冗餘邏輯**: 全面刪除代碼、日誌與 HTML 報表中殘留的 `ENV_EXCLUDED` 與 `exempt` 欄位，統一整合進 Profile 驅動的 `SKIPPED` 機制。
+- **通用性強化**: 所有測試模組 (`run_tests`) 現已支援傳入 `specs` 字典，優先採用外部配置值。
+
+### Fixed
+- **變數生命週期修正**: 修復 `main.py` 中 `hw_specs` 在合併前未定義的潛在錯誤。
+- **報表統計精確化**: 修正 HTML 報表中子系統百分比顯示，將分子計算基準從 `exempt` 改為 `skipped`。
+
+---
+
 ## [02.02.01-Final] - 2026-04-23
 ### Added
 - **10 點感測器工業診斷**: 實作 Accelerometer (加速計), Gyroscope (陀螺儀), Magnetometer (磁力計), e-Compass (羅盤), Light Sensor (光感測器) 之 Presence 與 Entropy 完整檢測。
 - **緩衝區飽和度判定 (Event Buffer Matching)**: 針對 T70 融合感測器日誌特性，透過檢查事件緩衝區是否填滿 (10/10 筆) 來判定感測器活耀度，解決機台靜置時方差為 0 的誤報。
 - **感測器代理機制**: 針對 T70 系統日誌屏蔽 raw Gyro 的問題，自動切換至 Rotation Vector 進行交叉驗證。
+- **Live-Sampling 同步採樣**: 在應用程式執行期間抓取數據，防止休眠。
 
 ---
 

@@ -1,0 +1,15 @@
+# Full Smoke Test Profile (Industrial Standard)
+# All items enabled, no exclusions.
+modules:
+  reboot: true
+  audio: true
+  camera: true
+  connectivity: true
+  sensors: true
+  power: true
+  nfc: true
+  gps: true
+  firmware: true
+  auto_factory_reset: true
+
+exclude_items: []

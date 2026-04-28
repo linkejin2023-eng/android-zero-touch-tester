@@ -2,7 +2,8 @@ import time
 import logging
 from framework.adb_helper import run_adb_cmd
 
-def run_tests(ui, reporter):
+def run_tests(ui, reporter, excluded=None):
+    if not excluded: excluded = []
     """
     NFC Test with robust polling and power cycling to detect static/taped tags.
     """
@@ -38,41 +39,39 @@ def run_tests(ui, reporter):
         return
 
     # 2. Physical Tag Read Verification (Polling Loop)
-    found_tag = False
-    details = "No tag detected"
-    
-    logging.info(f"--- NFC Tag Polling (Max {NFC_TIMEOUT}s) ---")
-    start_time = time.time()
-    
-    try:
-        while (time.time() - start_time) < NFC_TIMEOUT:
-            # Check Logcat for Discovery Intents or Native events
-            # We look for ACTIONs or NativeNfcTag/Tag discovered strings
-            _, out_log = run_adb_cmd("logcat -d | grep -iE 'ACTION_NDEF_DISCOVERED|ACTION_TECH_DISCOVERED|ACTION_TAG_DISCOVERED|NativeNfcTag: Connect|Tag discovered'")
-            
-            if out_log.strip():
-                details = f"Verified via Logcat: {out_log.splitlines()[-1]}"
-                found_tag = True
-                break
-            
-            # Check Dumpsys as fallback (mLastTag contains historical discovery)
-            _, nfc_sys = run_adb_cmd("dumpsys nfc | grep -i 'mLastTag'")
-            if "null" not in nfc_sys.lower() and nfc_sys.strip():
-                details = f"Verified via Dumpsys History: {nfc_sys.strip()}"
-                found_tag = True
-                break
+    if "Tag Read Verification" not in excluded:
+        found_tag = False
+        details = "No tag detected"
+        
+        logging.info(f"--- NFC Tag Polling (Max {NFC_TIMEOUT}s) ---")
+        start_time = time.time()
+        
+        try:
+            while (time.time() - start_time) < NFC_TIMEOUT:
+                _, out_log = run_adb_cmd("logcat -d | grep -iE 'ACTION_NDEF_DISCOVERED|ACTION_TECH_DISCOVERED|ACTION_TAG_DISCOVERED|NativeNfcTag: Connect|Tag discovered'")
                 
-            time.sleep(1.5)
-            elapsed = int(time.time() - start_time)
-            if elapsed % 5 == 0:
-                logging.info(f"Still polling for NFC Tag... ({elapsed}/{NFC_TIMEOUT}s)")
+                if out_log.strip():
+                    details = f"Verified via Logcat: {out_log.splitlines()[-1]}"
+                    found_tag = True
+                    break
+                
+                _, nfc_sys = run_adb_cmd("dumpsys nfc | grep -i 'mLastTag'")
+                if "null" not in nfc_sys.lower() and nfc_sys.strip():
+                    details = f"Verified via Dumpsys History: {nfc_sys.strip()}"
+                    found_tag = True
+                    break
+                    
+                time.sleep(1.5)
+                elapsed = int(time.time() - start_time)
+                if elapsed % 5 == 0:
+                    logging.info(f"Still polling for NFC Tag... ({elapsed}/{NFC_TIMEOUT}s)")
 
-        if found_tag:
-            reporter.add_result("NFC", "Tag Read Verification", True, details)
-            logging.info(f"NFC Tag successfully detected after {int(time.time() - start_time)}s.")
-        else:
-            reporter.add_result("NFC", "Tag Read Verification", False, 
-                                f"Failed: No tag detected after {NFC_TIMEOUT}s. Ensure Tag is on the induction area.")
-                
-    except Exception as e:
-        reporter.add_result("NFC", "Tag Read Verification", False, str(e))
+            if found_tag:
+                reporter.add_result("NFC", "Tag Read Verification", True, details)
+            else:
+                reporter.add_result("NFC", "Tag Read Verification", False, 
+                                    f"Failed: No tag detected after {NFC_TIMEOUT}s. Ensure Tag is on the induction area.")
+        except Exception as e:
+            reporter.add_result("NFC", "Tag Read Verification", False, str(e))
+    else:
+        reporter.add_result("NFC", "Tag Read Verification", True, "Skipped by profile", status_override="SKIP")

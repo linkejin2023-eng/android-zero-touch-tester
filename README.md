@@ -27,6 +27,7 @@
 | **[T70] Phase 5: 架構解耦與連線強韌化** | 完結 | **100%** | 執行 configs/ 目錄分離、WiFi/NFC/WWAN 強韌化、螢幕狀態自動還原 | 2026-04-02 |
 | **[T70] Phase 6: CI 通知工業化** | 完結 | **100%** | 模組化專業通知、環境假失敗豁免邏輯 (Honest Exit Code) | 2026-04-16 |
 | **[T70] Phase 7: 工業級加固與自癒機制** | 完結 | **100%** | 全路徑 INFRA_ERROR 報警、Factory Reset 劫持防護、智慧清理、預覽工具 | 2026-04-21 |
+| **[T70] Phase 8: 工業化配置系統** | 完結 | **100%** | 動態 Profile 加載 (--profile)、SKIPPED 統計模型、測項細粒度攔截、報表溯源 | 2026-04-23 |
 
 ---
 
@@ -95,10 +96,6 @@ python3 main.py --flash /path/to/fastboot.zip --sku china
 python3 main.py --oobe-only --sku china
 ```
 
-#### 情境 D: 遠端 CI 觸發 (由 Jenkins/SSH 發動)
-```bash
-python3 trigger_job.py --build 20260421 --type user --source daily --remote-path /path/to/fastboot.zip
-```
 
 ## CI/CD 整合結構 (Integration Architecture)
 
@@ -120,31 +117,30 @@ python3 trigger_job.py --build 20260421 --type user --source daily --remote-path
 負責接收指令並執行實際的硬體燒錄與功能驗證：
 - **`trigger_job.py`**: **測試接收入口**，由 Build Server 透過 SSH 呼叫。
 - **`main.py`**: 測試框架核心，由 `trigger_job.py` 調度執行。
+- **`config.yaml`**: **全域門檻與環境配置**，定義 WiFi 密碼與感應器判定標準。
 
-### 3. 狀態判定權威檔案 (`configs/status_logic.yaml`)
+### 3. 全域門檻控制 (`config.yaml`)
+本專案已將所有硬體門檻解耦，您可以針對不同專案的硬體差異進行微調：
+
+| 參數名 | 預設值 (T70) | 說明 |
+| :--- | :--- | :--- |
+| `audio_entropy_threshold` | `50` | 2KB 音訊樣本中的唯一位元組數量，判定麥克風是否存活。 |
+| `sensor_accel_threshold` | `0.0001` | 加速度計變異量門檻。 |
+| `sensor_gyro_threshold` | `0.000001` | 陀螺儀變異量門檻。 |
+| `sensor_light_threshold` | `0.0000001` | 光感應器變異量門檻。 |
+| `camera_file_timeout` | `60` | 等待相機檔案寫入穩定的最大秒數。 |
+| `reboot_timeout` | `120` | 等待裝置重啟後 ADB 恢復連線的秒數。 |
+
+### 4. 狀態判定權威檔案 (`configs/status_logic.yaml`)
 該設定檔定義了每個測試項目的「影響等級」，決定了測試失敗時，整份報告會呈現什麼顏色與狀態（此顏色指報表頂端總結與郵件主旨的標籤顏色）：
 
 | 等級 (Level) | 說明 | 報表顏色 | 對 Pass Rate 的影響 |
 | :--- | :--- | :---: | :---: |
 | **CRITICAL** | 致命錯誤（如連線中斷）。若失敗，主旨標記為 `[FAILED]`。 | 紅色 | 計入失敗 |
 | **PARTIAL** | 一般功能失敗。若失敗，主旨標記為 `[PARTIAL]`。 | 黃色 | 計入失敗 |
-| **ENV_EXCLUDED** | **環境/基礎設施因素**（如無 SIM 卡導致 WWAN 失敗）。 | 黃色 | **不計入**（視為豁免） |
 
 > [!NOTE]
 > 透過修改此 YAML 檔案，你可以「免寫代碼」直接調整某個測試項目是否應該阻礙 Release。例如：若實驗室環境暫時無法測試 GPS，可將 GPS 設為 `ENV_EXCLUDED`，避免其拖累總通過率。
-
-### 4. 感測器工業級診斷 (Sensor 10-Point Health Check)
-針對 Android 系統在機台靜置 (Static) 時會過濾感測器數據的特性，本框架採用以下技術確保「零誤報」：
-
-#### 核心判定邏輯
-1.  **Event Buffer Matching (緩衝區飽和度判定)**: 
-    - **原理**: `dumpsys sensorservice` 會保留最後 N 筆事件。若機台完全靜止，數據方差 (Variance) 可能為 0。
-    - **邏輯**: 若 Variance < 門檻，但事件緩衝區已填滿 (例如 10/10 筆或 50/50 筆)，則判定感測器「活耀且正常」，僅是數據未產生物理位移。
-2.  **Proxy Mapping (代理映射機制)**:
-    - **背景**: 部分系統日誌會屏蔽 `raw Gyro`。
-    - **解決方案**: 自動將檢測代理至 `Rotation Vector` (由 Gyro/Mag/Accel 融合)。若融合數據有輸出，反向證明物理感測器運作正常。
-3.  **Active Awakening (主動喚醒)**:
-    - 測試期間自動啟動 `Google Maps` 並執行併發滑動 (Jitter)，強制觸發系統 Fusion Sensor 更新，確保日誌中存在 live events。
 
 ---
 
@@ -167,14 +163,14 @@ python3 trigger_job.py --build 20260421 --type user --source daily --remote-path
 這是 CI 管道的最常用模式，透過帶入 Image Server 的絕對路徑來觸發：
 
 ```bash
-# 1. GMS Release 範例 (完整版本號模式)
-python3 trigger_job.py --build 02.01.06.260308 --type user --source release --remote-path /media/share/thorpe/Android_15/Release_pega/REL_02.01.06.260308/user/fastboot.zip
+# 1. GMS Release 範例 (產線編號格式)
+python3 trigger_job.py --build 02.02.02.260411 --type user --source release --remote-path /media/share/thorpe/Android_15/Release_pega/REL_02.02.02.260411/user/fastboot.zip
 
-# 2. GMS Daily 範例 (時間戳記模式)
+# 2. GMS Daily 範例 (時間戳記格式)
 python3 trigger_job.py --build 202604210433 --type user --source daily --remote-path /media/share/thorpe/Android_15/dailybuild/202604210433_thorpe_user/fastboot.zip
 
-# 3. China Release 範例 (包含 .N. 特徵)
-python3 trigger_job.py --build 02.01.06.N.260310 --type user --source release --sku china --remote-path /media/share/thorpe/Android_15/Release_pega/REL_02.01.06.N.260310/user/fastboot.zip
+# 3. China Release 範例 (包含 .N. 產線格式)
+python3 trigger_job.py --build 02.01.07.N.260417 --type user --source release --sku china --remote-path /media/share/thorpe/Android_15/Release_pega/REL_02.01.07.N.260417/user/fastboot.zip
 ```
 
 **情境 B: 本地手動 Debug 模式 (Image 已在 Test Server 本地)**

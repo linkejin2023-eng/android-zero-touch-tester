@@ -36,7 +36,6 @@ class HTMLReportGenerator:
             "failed": 0,
             "error": 0,
             "skipped": 0,
-            "exempt": 0, # NEW: Environmental Exemptions
             "duration": "0s",
             "device_info": {},
             "categories": {},
@@ -50,14 +49,6 @@ class HTMLReportGenerator:
         else:
             status = "PASS" if is_pass else "FAIL"
             
-        # [Industrial Logic] If FAIL, check if it should be EXEMPT (Env Excluded)
-        if status == "FAIL":
-            level = self.logic_registry.get((category_name, test_name))
-            if level == "ENV_EXCLUDED":
-                status = "EXEMPT"
-                message = f"[Env Excluded] {message}"
-            
-        # Automatic incremental duration
         if duration == 0.0:
             now = time.time()
             duration = now - self.last_mark
@@ -84,14 +75,13 @@ class HTMLReportGenerator:
         elif status == "FAIL": self.summary["failed"] += 1
         elif status == "ERROR": self.summary["error"] += 1
         elif status == "SKIP": self.summary["skipped"] += 1
-        elif status == "EXEMPT": self.summary["exempt"] += 1
             
         # Update category stats
         if category_name not in self.summary["categories"]:
             self.summary["categories"][category_name] = {
                 "name": category_name,
                 "id": cat_id,
-                "total": 0, "passed": 0, "failed": 0, "error": 0, "skipped": 0, "exempt": 0
+                "total": 0, "passed": 0, "failed": 0, "error": 0, "skipped": 0
             }
         
         cat = self.summary["categories"][category_name]
@@ -100,21 +90,24 @@ class HTMLReportGenerator:
         elif status == "FAIL": cat["failed"] += 1
         elif status == "ERROR": cat["error"] += 1
         elif status == "SKIP": cat["skipped"] += 1
-        elif status == "EXEMPT": cat["exempt"] += 1
 
     def set_device_info(self, info: dict):
         self.summary["device_info"] = info
 
+    def set_profile_content(self, path: str, content: str):
+        self.summary["profile_path"] = path
+        self.summary["profile_content"] = content
+
     def _calculate_donut_chart(self):
         total = self.summary["total"]
-        exempt = self.summary["exempt"]
+        skipped = self.summary["skipped"]
         
-        # Weighted Total: Exclude Exemptions from the denominator for more accurate quality gauge
-        effective_total = total - exempt
+        # Weighted Total: Exclude Skipped from the denominator for more accurate quality gauge
+        effective_total = total - skipped
         
         if total == 0 or effective_total <= 0:
-            return {"pass_pct": "0.0%", "pass_dash": 0, "fail_dash": 0, "skip_dash": 0, "exempt_dash": 0, 
-                    "fail_offset": 0, "skip_offset": 0, "exempt_offset": 0}
+            return {"pass_pct": "0.0%", "pass_dash": 0, "fail_dash": 0, "skip_dash": 0,
+                    "fail_offset": 0, "skip_offset": 0}
             
         passed = self.summary["passed"]
         failed = self.summary["failed"]
@@ -125,35 +118,30 @@ class HTMLReportGenerator:
         pass_ratio = passed / effective_total
         fail_ratio = (failed + error) / total # Still based on full total for segment size
         skip_ratio = skipped / total
-        exempt_ratio = exempt / total
         
         # Draw the chart based on full total but center text uses effective pass rate
         pass_dash = circumference * (passed / total)
         fail_dash = circumference * fail_ratio
         skip_dash = circumference * skip_ratio
-        exempt_dash = circumference * exempt_ratio
         
         # Offsets
         fail_offset = -pass_dash
         skip_offset = -(pass_dash + fail_dash)
-        exempt_offset = -(pass_dash + fail_dash + skip_dash)
         
         return {
             "pass_pct": f"{(pass_ratio * 100):.1f}%",
             "pass_dash": pass_dash,
             "fail_dash": fail_dash,
             "skip_dash": skip_dash,
-            "exempt_dash": exempt_dash,
             "fail_offset": fail_offset,
-            "skip_offset": skip_offset,
-            "exempt_offset": exempt_offset
+            "skip_offset": skip_offset
         }
         
     def _prepare_subsystem_stats(self):
         for cat_name, cat in self.summary["categories"].items():
             total = cat["total"]
-            exempt = cat["exempt"]
-            effective_total = total - exempt
+            skipped = cat["skipped"]
+            effective_total = total - skipped
             if total == 0: continue
             
             # Pass Rate per category also excludes exemptions
@@ -163,8 +151,7 @@ class HTMLReportGenerator:
             cat["fail_pct"] = (cat["failed"] / total) * 100
             cat["error_pct"] = (cat["error"] / total) * 100
             cat["skip_pct"] = (cat["skipped"] / total) * 100
-            cat["exempt_pct"] = (cat["exempt"] / total) * 100
-            cat["is_perfect"] = (cat["passed"] == (total - exempt))
+            cat["is_perfect"] = (cat["passed"] == (total - skipped))
 
     def export_summary_json(self, version: str, variant: str, status: str = "UNKNOWN"):
         """Export a machine-readable summary for CI/CD notification scripts."""
@@ -194,12 +181,10 @@ class HTMLReportGenerator:
                 "passed": self.summary["passed"],
                 "failed": self.summary["failed"],
                 "error": self.summary["error"],
-                "exempt": self.summary["exempt"],
                 "skipped": self.summary["skipped"],
-                "pass_rate": f"{(self.summary['passed'] / (self.summary['total'] - self.summary['exempt']) * 100):.1f}%" if (self.summary['total'] - self.summary['exempt']) > 0 else "100.0%"
+                "pass_rate": f"{(self.summary['passed'] / (self.summary['total'] - self.summary['skipped']) * 100):.1f}%" if (self.summary['total'] - self.summary['skipped']) > 0 else "100.0%"
             },
-            "failed_cases": failed_cases,
-            "env_excluded_cases": env_excluded_cases
+            "failed_cases": failed_cases
         }
         
         filename = f"test_summary.json" # Always fixed name in workspace for easy grep
@@ -273,7 +258,7 @@ class HTMLReportGenerator:
   .overall-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 16px; border-radius: 20px; font-weight: 700; font-size: 14px; margin-bottom: 6px; }
   .overall-badge.pass { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }
   .overall-badge.fail { background: var(--red-bg); color: var(--red); border: 1px solid var(--red-border); }
-  .overall-badge.exempt { background: var(--amber-bg); color: var(--amber); border: 1px solid var(--amber-border); }
+  .overall-badge.skipped { background: var(--text-muted-bg); color: var(--text-muted); border: 1px solid var(--border); }
   
   /* Stats Row */
   .stats-row { display: grid; grid-template-columns: 200px 1fr; gap: 24px; margin-bottom: 36px; }
@@ -289,12 +274,23 @@ class HTMLReportGenerator:
   .stat-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
   .stat-card.total::before { background: var(--accent); } .stat-card.pass::before { background: var(--green); }
   .stat-card.fail::before { background: var(--red); } .stat-card.error::before { background: var(--pink); } 
-  .stat-card.skip::before { background: rgba(255,255,255,.2); } .stat-card.exempt::before { background: var(--amber); }
+  .stat-card.skip::before { background: rgba(255,255,255,.2); }
   .stat-card .stat-label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 6px; }
   .stat-card .stat-value { font-size: 28px; font-weight: 700; font-family: var(--mono); line-height: 1; }
   .stat-card.total .stat-value { color: var(--accent); } .stat-card.pass .stat-value { color: var(--green); }
   .stat-card.fail .stat-value { color: var(--red); } .stat-card.error .stat-value { color: var(--pink); } 
-  .stat-card.skip .stat-value { color: var(--text-muted); } .stat-card.exempt .stat-value { color: var(--amber); }
+  .stat-card.skip .stat-value { color: var(--text-muted); }
+
+  /* Profile Section */
+  .profile-section { margin-bottom: 36px; background: var(--surface-2); border-radius: 12px; border: 1px solid var(--border); overflow: hidden; }
+  .profile-header { padding: 12px 20px; background: var(--surface-3); display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+  .profile-header:hover { background: var(--surface-4); }
+  .profile-title { font-size: 14px; font-weight: 600; color: var(--text-dim); }
+  .profile-path { font-family: var(--mono); font-size: 12px; color: var(--accent); }
+  .profile-content { padding: 16px 20px; font-family: var(--mono); font-size: 12px; line-height: 1.5; color: var(--text-muted); display: none; white-space: pre-wrap; background: rgba(0,0,0,0.2); }
+  .profile-section.expanded .profile-content { display: block; }
+  .toggle-icon { transition: transform 0.3s; }
+  .profile-section.expanded .toggle-icon { transform: rotate(180deg); }
 
   /* Device Info */
   .info-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px 32px; }
@@ -368,8 +364,7 @@ class HTMLReportGenerator:
   .status { display: inline-flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 6px; }
   .status.s-PASS { color: var(--green); background: var(--green-bg); }
   .status.s-FAIL { color: var(--red); background: var(--red-bg); }
-  .status.s-SKIP { color: var(--text-dim); background: rgba(255,255,255,.05); }
-  .status.s-EXEMPT { color: var(--amber); background: var(--amber-bg); }
+  .status.s-SKIP { color: var(--text-dim); background: rgba(255,255,255,.08); border: 1px solid var(--border); }
   .status.s-ERROR { color: var(--pink); background: var(--pink-bg); }
   
   footer { margin-top: 48px; padding-top: 20px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-muted); display: flex; justify-content: space-between; }
@@ -410,7 +405,6 @@ class HTMLReportGenerator:
           <circle cx="70" cy="70" r="65" fill="none" stroke="var(--surface-3)" stroke-width="10"/>
           <circle cx="70" cy="70" r="65" fill="none" stroke="var(--green)" stroke-width="10" stroke-dasharray="{{ donut.pass_dash }} 408" stroke-linecap="round"/>
           <circle cx="70" cy="70" r="65" fill="none" stroke="var(--red)" stroke-width="10" stroke-dasharray="{{ donut.fail_dash }} 408" stroke-dashoffset="{{ donut.fail_offset }}" stroke-linecap="round"/>
-          <circle cx="70" cy="70" r="65" fill="none" stroke="var(--amber)" stroke-width="10" stroke-dasharray="{{ donut.exempt_dash }} 408" stroke-dashoffset="{{ donut.exempt_offset }}" stroke-linecap="round"/>
           <circle cx="70" cy="70" r="65" fill="none" stroke="var(--text-muted)" stroke-width="10" stroke-dasharray="{{ donut.skip_dash }} 408" stroke-dashoffset="{{ donut.skip_offset }}" stroke-linecap="round" opacity="0.3"/>
         </svg>
         <div class="donut-center">
@@ -423,7 +417,6 @@ class HTMLReportGenerator:
       <div class="stat-card total"><div class="stat-label">Total</div><div class="stat-value">{{ summary.total }}</div></div>
       <div class="stat-card pass"><div class="stat-label">Passed</div><div class="stat-value">{{ summary.passed }}</div></div>
       <div class="stat-card fail"><div class="stat-label">Failed</div><div class="stat-value">{{ summary.failed }}</div></div>
-      <div class="stat-card exempt"><div class="stat-label">Exempt</div><div class="stat-value">{{ summary.exempt }}</div></div>
       <div class="stat-card error"><div class="stat-label">Error</div><div class="stat-value">{{ summary.error }}</div></div>
       <div class="stat-card skip"><div class="stat-label">Skipped</div><div class="stat-value">{{ summary.skipped }}</div></div>
     </div>
@@ -438,22 +431,33 @@ class HTMLReportGenerator:
     </div>
   </div>
 
+  {% if summary.profile_content %}
+  <div class="profile-section animate-in d2" id="profile-sec" style="margin-bottom: 36px;">
+    <div class="profile-header" onclick="document.getElementById('profile-sec').classList.toggle('expanded')">
+      <div class="profile-title">
+        <span>Loaded Profile: </span>
+        <span class="profile-path">{{ summary.profile_path }}</span>
+      </div>
+      <div class="toggle-icon">▼</div>
+    </div>
+    <div class="profile-content">{{ summary.profile_content }}</div>
+  </div>
+  {% endif %}
+
   <div class="section-title animate-in d3">Subsystem Overview</div>
   <div class="subsystem-grid animate-in d3">
     {% for cat_name, cat in summary.categories.items() %}
     <div class="sub-card {% if cat.is_perfect %}s-pass{% else %}s-fail{% endif %}" onclick="jumpToSection('{{ cat.id }}')">
-      <div class="sub-name">{{ cat.name }}<span class="sub-badge">{{ cat.passed }}/{{ cat.total - cat.exempt }}</span></div>
+      <div class="sub-name">{{ cat.name }}<span class="sub-badge">{{ cat.passed }}/{{ cat.total - cat.skipped }}</span></div>
       <div class="sub-bar">
         {% if cat.pass_pct > 0 %}<div style="width: {{ cat.pass_pct }}%; background: var(--green);"></div>{% endif %}
         {% if cat.fail_pct > 0 %}<div style="width: {{ cat.fail_pct }}%; background: var(--red);"></div>{% endif %}
         {% if cat.error_pct > 0 %}<div style="width: {{ cat.error_pct }}%; background: var(--pink);"></div>{% endif %}
-        {% if cat.exempt_pct > 0 %}<div style="width: {{ cat.exempt_pct }}%; background: var(--amber);"></div>{% endif %}
         {% if cat.skip_pct > 0 %}<div style="width: {{ cat.skip_pct }}%; background: var(--text-muted); opacity: 0.3;"></div>{% endif %}
       </div>
       <div class="sub-stats">
         <span><span class="dot g"></span>{{ cat.passed }}</span>
         {% if cat.failed > 0 %}<span><span class="dot r"></span>{{ cat.failed }}</span>{% endif %}
-        {% if cat.exempt > 0 %}<span><span class="dot a"></span>{{ cat.exempt }}</span>{% endif %}
         {% if cat.skipped > 0 %}<span><span class="dot gray"></span>{{ cat.skipped }}</span>{% endif %}
       </div>
     </div>
@@ -465,8 +469,8 @@ class HTMLReportGenerator:
     <span class="filter-label">Filter:</span>
     <button class="filter-btn active" onclick="filterTests('all')">All</button>
     <button class="filter-btn f-fail" onclick="filterTests('FAIL')">Failed / Error</button>
-    <button class="filter-btn f-skip" onclick="filterTests('EXEMPT')">Exempt (Env)</button>
     <button class="filter-btn f-pass" onclick="filterTests('PASS')">Passed</button>
+    <button class="filter-btn f-skip" onclick="filterTests('SKIP')">Skipped</button>
   </div>
 
   {% for cat_name, cat in summary.categories.items() %}
@@ -477,7 +481,7 @@ class HTMLReportGenerator:
           {% if cat.is_perfect %}✓{% else %}✗{% endif %}
         </span>
         {{ cat.name }}
-        <span class="cat-count">{{ cat.passed }}/{{ cat.total - cat.exempt }}</span>
+        <span class="cat-count">{{ cat.passed }}/{{ cat.total - cat.skipped }}</span>
       </h3>
       <span class="chevron">▼</span>
     </div>

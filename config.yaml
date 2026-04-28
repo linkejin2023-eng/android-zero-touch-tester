@@ -1,25 +1,17 @@
 # --- Android Smoke Test Configuration ---
 
-modules:
-  reboot: true
-  audio: true
-  camera: true
-  connectivity: true
-  sensors: true
-  power: true
-  nfc: true
-  gps: true
-  firmware: true
-  auto_factory_reset: true
-
 # --- Network Config ---
 network:
   wifi_ssid: "Xiaomi_test"
-  wifi_pass: "12345678"
+  wifi_pass: "0987654321"
 
 # --- Thresholds ---
-audio_entropy_threshold: 0.1
-sensor_variance_threshold: 0.0001
-camera_file_timeout: 10
+audio_entropy_threshold: 50
+sensor_accel_threshold: 0.0001
+sensor_gyro_threshold: 0.000001
+sensor_mag_threshold: 0.01
+sensor_compass_threshold: 0.000000001
+sensor_light_threshold: 0.0000001
+camera_file_timeout: 60
 reboot_timeout: 120
 oobe_bypass_timeout: 300

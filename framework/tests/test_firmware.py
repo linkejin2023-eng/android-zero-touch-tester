@@ -28,12 +28,9 @@ def run_tests(ui: UIHelper, reporter, validations=None):
             try:
                 logging.info(f"Attempting extraction via: {extractor.get('type')}")
                 actual_val = execute_extractor(ui, extractor)
-                if actual_val and "timeout" not in str(actual_val).lower() and "error" not in str(actual_val).lower():
+                if actual_val:
                     logging.info(f"Extracted value: {actual_val} via {extractor.get('type')}")
                     break
-                else:
-                    logging.warning(f"Extractor {extractor.get('type')} returned invalid value: {actual_val}, trying next...")
-                    actual_val = None
             except Exception as e:
                 logging.warning(f"Extractor {extractor.get('type')} failed for {name}: {e}")
         
@@ -62,19 +59,26 @@ def execute_extractor(ui: UIHelper, extractor):
 
     elif ext_type == "logcat":
         cmd = extractor.get("command")
+        # Optimization: Use -t 5000 to avoid dumping massive old logs if -d is used
+        if "logcat -d" in cmd and "-t" not in cmd:
+            cmd = cmd.replace("logcat -d", "logcat -d -t 5000")
+            
         max_retries = 3
         for attempt in range(max_retries):
-            _, out = run_adb_cmd(cmd)
+            # Give logcat more time (30s) as buffer dumping can be slow on heavy-loaded systems
+            _, out = run_adb_cmd(cmd, timeout=30)
             out = (out or "").strip()
-            if out:
+            
+            if out and out != "Timeout":
                 if extractor.get("split_by"):
                     parts = out.split(extractor.get("split_by"))
                     idx = extractor.get("split_index", -1)
                     if len(parts) > 0:
                         return parts[idx].strip()
                 return out
+            
             if attempt < max_retries - 1:
-                logging.info(f"Logcat extractor empty, retrying in 3s ({attempt + 1}/{max_retries})...")
+                logging.info(f"Logcat extractor empty or timed out, retrying in 3s ({attempt + 1}/{max_retries})...")
                 time.sleep(3)
         return None
 

@@ -32,8 +32,8 @@ def run_tests(ui, reporter: HTMLReportGenerator, label="Factory Reset Integrity"
     
     # Standard reporting if called normally
     if files == 0:
-        reporter.add_result("Lifecycle", label, True, "Verified: Internal storage (/sdcard) is clean.")
+        reporter.add_result("System", label, True, "Verified: Internal storage (/sdcard) is clean.")
     else:
-        reporter.add_result("Lifecycle", label, False, f"Warning: Residual data found ({files} files).")
+        reporter.add_result("System", label, False, f"Warning: Residual data found ({files} files).")
     
-    reporter.add_result("Lifecycle", "System Uptime", True, f"Device uptime: {uptime:.2f} hours")
+    reporter.add_result("System", "System Uptime", True, f"Device uptime: {uptime:.2f} hours")
