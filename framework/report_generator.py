@@ -38,6 +38,7 @@ class HTMLReportGenerator:
             "skipped": 0,
             "duration": "0s",
             "device_info": {},
+            "tool_info": {},
             "categories": {},
             "readiness": "🔴"
         }
@@ -93,6 +94,9 @@ class HTMLReportGenerator:
 
     def set_device_info(self, info: dict):
         self.summary["device_info"] = info
+
+    def set_tool_info(self, info: dict):
+        self.summary["tool_info"] = info
 
     def set_profile_content(self, path: str, content: str):
         self.summary["profile_path"] = path
@@ -384,11 +388,13 @@ class HTMLReportGenerator:
       <div>
         <h1>System Smoke Test Report</h1>
         <div class="header-meta">
-          <span>{{ summary.device_info.get('Model', 'Unknown Device') }}</span>
+          <span style="color: var(--text); font-weight: 700;">{{ summary.device_info.get('Model', 'Unknown Device') }}</span>
+          <span class="sep">/</span>
+          <span title="Automation Framework Version">Tool: v{{ summary.tool_info.get('version', '2.0.0') }}</span>
           <span class="sep">/</span>
           <span>{{ timestamp }}</span>
           <span class="sep">/</span>
-          <span style="color: var(--accent); font-weight: 700;">Duration: {{ summary.duration }}</span>
+          <span style="color: var(--accent); font-weight: 700;">{{ summary.duration }}</span>
         </div>
       </div>
     </div>
@@ -512,7 +518,7 @@ class HTMLReportGenerator:
   {% endfor %}
 
   <footer class="animate-in d5">
-    <span>Smoke Test Automation Framework / T70</span>
+    <span>Smoke Test Automation Framework v{{ summary.tool_info.get('version', '2.0.0') }} / T70</span>
     <span>Generated {{ timestamp }}</span>
   </footer>
 </div>

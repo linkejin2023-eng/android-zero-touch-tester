@@ -3,15 +3,17 @@ import logging
 import time
 
 class UIHelper:
-    def __init__(self, serial=None, retries=3):
+    def __init__(self, serial: str = None, retries=3):
         import subprocess
+        self.serial = serial
         self.d = None
         
         for attempt in range(retries):
             try:
                 # Pre-emptive strike: Clear potential overlays via ADB
                 logging.info(f"UIAutomator2 connection attempt {attempt + 1}/{retries}...")
-                subprocess.run(["adb", "shell", "input", "keyevent", "3"], capture_output=True) # KEYCODE_HOME
+                adb_prefix = f"adb -s {serial}" if serial else "adb"
+                subprocess.run(f"{adb_prefix} shell input keyevent 3", shell=True, capture_output=True)
                 time.sleep(2)
                 
                 self.d = u2.connect(serial)

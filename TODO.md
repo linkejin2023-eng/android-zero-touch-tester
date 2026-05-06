@@ -29,7 +29,12 @@
 ---
 
 ## 待擴展清單 (Next Deliverables)
-* [ ] **#15 壓力測試模組 (Stress Test Module)**: 擴充 Reboot / Suspend 壓力循環腳本。
+- [x] [AOA] 實現多裝置平行測試的 USB 總線鎖定機制: (2026-05-06 已完成)
+- [x] **#24 Stage 0.5 Smart Polling Engine**: (2026-05-06 已完成) 實作 15s USB 起算計時與多 VID 精確偵測。
+- [ ] [Sensors] 整合 SensorBox (imoblife.androidsensorbox) 自動化安裝與啟動
+- [ ] [Sensors] 優化傳感器喚醒機制：改用 Camera 或 SensorBox 觸發以支援 China SKU
+- [ ] [Sensors] 適配 SKU 特定的傳感器關鍵字（如 ist8306 Magnetometer）
+- [ ] **#15 壓力測試模組 (Stress Test Module)**: 擴充 Reboot / Suspend 壓力循環腳本。
 * [/] **#23 統一主控器 (Unified Orchestrator)**: **(開發中)** 整合 Bash 入口至 `orchestrator.py`。
 
 ---

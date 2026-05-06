@@ -36,8 +36,9 @@ MOD_LALT = 0x04
 MOD_LMETA = 0x08
 
 class OOBEBypass:
-    def __init__(self, driver):
+    def __init__(self, driver, serial=None):
         self.driver = driver
+        self.serial = serial
         self.hid_kb_id = 1
         self.hid_consumer_id = 2
 
@@ -85,30 +86,24 @@ class OOBEBypass:
         logging.info(f"Starting ADB Enablement sequence (Trimble T70, SKU={sku})...")
         
         # We start exactly from where the recorder left off (assuming Home Screen)
-        hybrid_seq = [
-            "SETTINGS", 
-        ]
+        hybrid_seq = ["SETTINGS"]
         
-        # China SKU needs extra steps to dismiss initial agreement/prompt when opening settings
         if sku == "china":
             hybrid_seq.extend(["TAB", "TAB", "ENTER"])
             
-        # Toggle ADB: China SKU has 6 DOWNs (GMS has 7)
         adb_toggle_downs = ["DOWN"] * (6 if sku == "china" else 7)
-        
-        # Second set of DOWNs to reach the final toggle/confirmation: China SKU has 12 (GMS has 14)
         final_toggle_downs = ["DOWN"] * (12 if sku == "china" else 14)
         
         hybrid_seq.extend([
             "TAB", "TAB", "TAB", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", 
-            "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "ENTER", # Enters About Phone?
-            "TAB", "TAB", "TAB", "TAB", "TAB", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", 
-            "TAB", "TAB", "TAB", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "ENTER", # Build number?
-            "MULTI_ENTER", "SYS_BACK", "UP", "ENTER", # Dev options
-            "TAB"
+            "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "ENTER", 
+            "TAB", "TAB", "TAB", # 3 TABS to reach the list
+            "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", 
+            "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", # 15 DOWNS to hit bottom (Build Number)
+            "ENTER", # Trigger/Focus Build number
+            "MULTI_ENTER", "SYS_BACK", "UP", "ENTER", "TAB"
         ] + adb_toggle_downs + [
-            "ENTER", # Toggle ADB
-            "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB"
+            "ENTER", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB"
         ] + final_toggle_downs + [
             "ENTER", "TAB", "TAB", "ENTER"
         ])
@@ -117,41 +112,40 @@ class OOBEBypass:
             try:
                 if cmd == "SETTINGS":
                     self.press_key(KEY_I, MOD_LMETA)
-                    time.sleep(2.0) # Slightly more delay for China SKU settings load
-                elif cmd == "TAB": self.press_key(KEY_TAB)
+                    time.sleep(2.0)
+                elif cmd == "TAB": 
+                    self.press_key(KEY_TAB)
+                    time.sleep(1.0)
                 elif cmd == "ENTER": 
                     self.press_key(KEY_ENTER)
-                    time.sleep(2) # Give UI time to react
+                    time.sleep(2)
                 elif cmd == "DOWN": 
                     self.press_key(KEY_DOWN)
-                    time.sleep(0.2)
+                    time.sleep(0.5) # 提高延遲以適應 UI 渲染
                 elif cmd == "UP": 
                     self.press_key(KEY_UP)
-                    time.sleep(0.2)
+                    time.sleep(0.5) # 提高延遲以適應 UI 渲染
                 elif cmd == "MULTI_ENTER": 
                     for _ in range(7):
                         self.press_key(KEY_ENTER)
                         time.sleep(0.1)
-                    time.sleep(1.0) # Delay to allow "You are now a developer" toast/transition
+                    time.sleep(1.0) # 等待 Toast 提示穩定
                 elif cmd == "SYS_BACK": 
                     self.press_back()
-                    time.sleep(1.0) # Delay for back navigation transition
+                    time.sleep(1.5) # 給予足夠轉場時間
                 elif cmd == "SYS_HOME": 
                     self.press_home()
-                
+                    time.sleep(1.5) # 給予足夠轉場時間
                 logging.info(f"HID Event Sent: {cmd}")
             except Exception as e:
-                # If we lose connection here (e.g. PID changed), we exit loop and handle reconnection
                 if "No such device" in str(e) or "Pipe error" in str(e):
                     logging.warning("Device disconnected (likely PID change). Starting reconnection...")
                     break
         
-        # 3. Handle Re-enumeration
-        time.sleep(5) # Wait for device to re-appear with 02B5
+        # 3. Handle Re-enumeration (PID change)
+        time.sleep(5)
         logging.info("Attempting to reconnect after ADB toggle...")
-        
-        # Explicitly search for the device again (PID changed!)
-        if self.driver.find_device():
+        if self.driver.find_device(serial=self.serial):
             if self.driver.switch_to_accessory_mode():
                 self.driver.register_hid(1, KB_REPORT_DESC)
                 self.driver.register_hid(2, CONSUMER_REPORT_DESC)
@@ -162,25 +156,29 @@ class OOBEBypass:
                     try:
                         import subprocess
                         out = subprocess.check_output(["adb", "devices"]).decode()
-                        return "DBB123456789\tdevice" in out or "\tdevice" in out
-                    except:
-                        return False
+                        check_sn = self.serial if self.serial else ""
+                        if check_sn:
+                            return f"{check_sn}\tdevice" in out
+                        return "\tdevice" in out
+                    except: return False
 
-                # Try a few times in case the dialog is slow, but stop if authorized
                 for attempt in range(3):
                     if is_adb_authorized():
                         logging.info("ADB already authorized! Skipping further HID inputs.")
                         break
-                        
                     logging.info(f"Authorization attempt {attempt + 1}...")
-                    self.press_key(KEY_ENTER) # Dismiss focus
+                    self.press_key(KEY_ENTER) 
                     time.sleep(0.5)
                     self.press_key(KEY_TAB)
                     self.press_key(KEY_TAB)
                     self.press_key(KEY_ENTER)
-                    time.sleep(3) # Delay to allow ADB state change
+                    time.sleep(5) # 增加等待時間讓 ADB 狀態生效
+
+                if is_adb_authorized():
+                    logging.info("MISSION ACCOMPLISHED: ADB authorized successfully!")
+                    return True
                 
-                logging.info("ADB Enablement Step Finished.")
+                logging.info("ADB Enablement Step Finished (Authorization pending or failed).")
             else:
                 logging.error("Failed to re-switch to Accessory Mode.")
         else:
@@ -210,14 +208,15 @@ class OOBEBypass:
             # Date & Time page only appears WITHOUT SIM
             sequence.extend(["TAB", "TAB", "TAB", "TAB", "ENTER"])
 
-        # PIN Screen + Confirm dialog
+        # PIN Screen + Confirm dialog + Google Services
         sequence.extend([
             "SYS_BACK", "TAB", "ENTER",      # PIN Screen Skip (BACK to hide keyboard, TAB to focus Skip)
             "SLEEP_1", "TAB", "TAB", "ENTER", # Skip anyway dialog
-            "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "ENTER" # Google Services
+            "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", "TAB", 
+            "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "DOWN", "ENTER" # Google Services (6x DOWN to hit Accept)
         ])
         
-        self._execute_sequence(sequence)
+        return self._execute_sequence(sequence)
 
     def bypass_china_oobe(self):
         logging.info("Starting China SKU OOBE Bypass sequence for Trimble T70...")
@@ -227,7 +226,7 @@ class OOBEBypass:
             "TAB", "TAB", "ENTER", # Welcome screen / Language?
             "TAB", "TAB", "TAB", "TAB", "TAB", "ENTER" # China specific Skip flow
         ]
-        self._execute_sequence(sequence)
+        return self._execute_sequence(sequence)
 
     def reset_device_to_factory_settings(self):
         """Executes the recorded HID sequence to perform a Factory Reset."""
@@ -253,15 +252,17 @@ class OOBEBypass:
         self.press_home() 
         time.sleep(1.5)
         
-        # 3. Pre-cleanup Settings
+        # 3. Pre-cleanup Settings (Force reset state)
         try:
-            import subprocess
+            from framework.adb_helper import run_adb_cmd
             logging.info("Ensuring Settings app is in a fresh state...")
-            subprocess.run(["adb", "shell", "am", "force-stop", "com.android.settings"], capture_output=True)
-            subprocess.run(["adb", "shell", "am", "start", "-a", "android.settings.SETTINGS"], capture_output=True)
-            time.sleep(2.5)
-        except:
-            pass
+            run_adb_cmd("am force-stop com.android.settings")
+            time.sleep(1.0)
+            # Use --clear-task to force back to the root menu
+            run_adb_cmd("am start -a android.settings.SETTINGS --clear-task")
+            time.sleep(3.0) # Wait for settings to load
+        except Exception as e:
+            logging.warning(f"Failed to pre-clean settings via ADB: {e}")
 
         # 2. Recorded Sequence
         # If 'am start' worked, we are in Settings. 
@@ -284,43 +285,49 @@ class OOBEBypass:
         # time.sleep(2)
 
         for step in sequence:
+            success = True
             logging.info(f"HID Event -> Sending: {step}")
             if step == "TAB":
-                self.press_key(KEY_TAB)
-                time.sleep(0.6)
+                success = self.press_key(KEY_TAB)
+                time.sleep(1.0) # 拉長 TAB 間隔確保 UI 焦點穩定
             elif step == "ENTER":
-                self.press_key(KEY_ENTER)
+                success = self.press_key(KEY_ENTER)
                 time.sleep(2.0)
             elif step == "DOWN":
-                self.press_key(KEY_DOWN)
+                success = self.press_key(KEY_DOWN)
                 time.sleep(0.4)
             elif step == "UP":
-                self.press_key(KEY_UP)
+                success = self.press_key(KEY_UP)
                 time.sleep(0.4)
             elif step == "LEFT":
-                self.press_key(KEY_LEFT)
+                success = self.press_key(KEY_LEFT)
                 time.sleep(0.4)
             elif step == "RIGHT":
-                self.press_key(KEY_RIGHT)
+                success = self.press_key(KEY_RIGHT)
                 time.sleep(0.4)
             elif step == "SETTINGS":
-                self.press_key(KEY_I, MOD_LMETA)
+                success = self.press_key(KEY_I, MOD_LMETA)
                 time.sleep(2)
             elif step == "SLEEP_1":
                 time.sleep(1.0)
             elif step == "SYS_BACK":
-                self.press_back()
+                success = self.press_back()
                 time.sleep(1.0)
             elif step == "SYS_HOME":
-                self.press_home()
+                success = self.press_home()
                 time.sleep(1.0)
             elif step == "ESC":
-                self.press_key(KEY_ESC)
+                success = self.press_key(KEY_ESC)
                 time.sleep(0.5)
+            
+            if not success:
+                logging.error(f"HID sequence execution aborted at step: {step}")
+                return False
         
         logging.info("OOBE/Sequence complete.")
+        return True
 
-def run_oobe_bypass(sku="gms", timeout=600):
+def run_oobe_bypass(sku="gms", serial=None, timeout=600):
     """Wait for device to appear and then run the OOBE bypass + ADB enable sequence with retries."""
     logging.info(f"Waiting for device to appear on USB (timeout={timeout}s, SKU={sku})...")
     start = time.time()
@@ -328,26 +335,35 @@ def run_oobe_bypass(sku="gms", timeout=600):
     
     def is_adb_ready():
         try:
-            import subprocess
-            out = subprocess.check_output(["adb", "devices"]).decode()
-            return "\tdevice" in out
-        except:
-            return False
+            from framework import adb_helper
+            res = adb_helper.run_local_adb(["devices"])
+            # 使用函數參數中的 serial，若無則回退到全域
+            check_sn = serial if serial else adb_helper.GLOBAL_SERIAL
+            if check_sn:
+                return f"{check_sn}\tdevice" in res.stdout
+            return "\tdevice" in res.stdout
+        except: return False
+
+    # 確保有目標序號
+    target_serial = serial if serial else adb_helper.GLOBAL_SERIAL
 
     while time.time() - start < timeout:
-        # --- [NEW] Fast-track ADB Check ---
-        # If ADB is already up (e.g., userdebug or previously authorized), abort HID process immediately
         if is_adb_ready():
-            logging.info("ADB detected early during USB polling! Skipping HID and using fast-track bypass.")
+            logging.info("ADB detected (Fast-track)! Skipping HID.")
             return True
 
-        if driver.find_device():
-            logging.info("Device detected! Starting AOA handshake...")
+        if driver.find_device(serial=target_serial):
+            # 如果是自動鎖定序號，回寫到全域
+            if not target_serial:
+                target_serial = driver.target_serial
+                adb_helper.GLOBAL_SERIAL = target_serial
+
+            logging.info(f"Stage 1: Device {target_serial} locked. Initiating AOA...")
             if driver.switch_to_accessory_mode():
                 driver.register_hid(1, KB_REPORT_DESC)
                 driver.register_hid(2, CONSUMER_REPORT_DESC)
                 
-                bypass = OOBEBypass(driver)
+                bypass = OOBEBypass(driver, serial=target_serial)
                 
                 # Branching Strategy for GMS (Try SIM path then No-SIM path)
                 attempts = [True, False] if sku == "gms" else [True]
@@ -375,10 +391,12 @@ def run_oobe_bypass(sku="gms", timeout=600):
                     logging.info("OOBE Sequence finished. Waiting 5s before enabling ADB...")
                     time.sleep(5)
                     
-                    # 3. Try Enable ADB
-                    bypass.enable_adb_trimble(sku=sku)
+                    # 3. Try Enable ADB (Capture return value)
+                    if bypass.enable_adb_trimble(sku=sku):
+                        logging.info("MISSION SUCCESS: ADB is authorized via enable_adb_trimble!")
+                        return True
                     
-                    # 4. Check Success
+                    # 4. Final safety Check
                     if is_adb_ready():
                         logging.info("MISSION SUCCESS: ADB is authorized and device is ready!")
                         return True

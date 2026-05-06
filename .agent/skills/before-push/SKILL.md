@@ -1,6 +1,6 @@
 ---
 name: before-push
-description: 強制執行提交前的文檔同步與代碼品質檢查。
+description: 此 Skill 用於在執行 `git commit` 或 `git push` 之前，確保所有必要的文檔（CHANGELOG, README, TODO）已根據代碼變更進行同步更新
 ---
 
 # Before Push Skill

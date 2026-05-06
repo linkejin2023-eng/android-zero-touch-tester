@@ -9,12 +9,13 @@ from framework.adb_helper import wait_for_device
 class FlashManager:
     """Manages the flashing process for Android devices."""
 
-    def __init__(self, zip_path: str, no_wipe: bool = False):
+    def __init__(self, zip_path: str, no_wipe: bool = False, serial: str = None):
         self.zip_path = os.path.abspath(zip_path)
         self.extract_dir = os.path.dirname(self.zip_path)
-        self.fastboot_bin = "fastboot" # Default to system PATH
+        self.serial = serial
+        self.fastboot_bin = f"fastboot -s {serial}" if serial else "fastboot"
         self.no_wipe = no_wipe
-        logging.info(f"FlashManager initialized with ZIP: {self.zip_path} (No-Wipe: {self.no_wipe})")
+        logging.info(f"FlashManager initialized with ZIP: {self.zip_path} (Serial: {self.serial}, No-Wipe: {self.no_wipe})")
 
     def extract_firmware(self) -> bool:
         """Extracts the firmware ZIP to its current directory."""
@@ -52,19 +53,21 @@ class FlashManager:
         logging.info(f"Waiting for Fastboot device (timeout={timeout}s)...")
         start = time.time()
         while time.time() - start < timeout:
-            # Check if command exists first to avoid misinterpreting error messages
-            code, out = self._run_local_cmd(f"{self.fastboot_bin} devices")
+            # Check for ANY devices first
+            code, out = self._run_local_cmd("fastboot devices")
             
-            # Robust detection: must find a line with '<serial>\tfastboot'
-            devices = []
-            for line in out.split('\n'):
-                parts = line.split()
-                if len(parts) >= 2 and parts[1].strip() == "fastboot":
-                    devices.append(parts[0])
-            
-            if devices:
-                logging.info(f"Fastboot device detected: {devices[0]}")
-                return True
+            # If we have a target serial, check for THAT specific serial
+            if self.serial:
+                if f"{self.serial}\tfastboot" in out:
+                    logging.info(f"Fastboot device {self.serial} detected.")
+                    return True
+            else:
+                # Fallback: find any fastboot device
+                for line in out.split('\n'):
+                    parts = line.split()
+                    if len(parts) >= 2 and parts[1].strip() == "fastboot":
+                        logging.info(f"Fastboot device {parts[0]} detected (Fallback).")
+                        return True
             
             if "not found" in out or code == 127:
                 logging.debug(f"Target binary '{self.fastboot_bin}' not found yet.")
@@ -107,7 +110,7 @@ class FlashManager:
         if os.path.exists(local_fb):
             logging.info(f"Found local fastboot binary at: {local_fb}. Prioritizing it.")
             self._run_local_cmd(f"chmod +x {local_fb}")
-            self.fastboot_bin = local_fb # Switch to local path
+            self.fastboot_bin = f"{local_fb} -s {self.serial}" if self.serial else local_fb
 
         # 2. Check Connection
         logging.info("Checking if device is connected (ADB or Fastboot)...")
@@ -121,8 +124,8 @@ class FlashManager:
         # 3. Reboot to Bootloader (if needed)
         if in_adb:
             logging.info("Device in ADB mode, rebooting to bootloader...")
-            # Note: adb is still assumed to be in path or handled separately
-            self._run_local_cmd("adb reboot bootloader")
+            adb_prefix = f"adb -s {self.serial}" if self.serial else "adb"
+            self._run_local_cmd(f"{adb_prefix} reboot bootloader")
             if not self.wait_for_fastboot():
                 return False
         else:
@@ -132,7 +135,10 @@ class FlashManager:
         logging.info("Unlocking OEM: Trimble-Thorpe")
         code, out = self._run_local_cmd(f"{self.fastboot_bin} oem unlock Trimble-Thorpe")
         if code != 0:
-            logging.warning(f"OEM Unlock might have failed or already unlocked: {out}")
+            logging.warning(f"OEM Unlock status: {out}")
+        else:
+            logging.info("OEM Unlock command sent successfully. Waiting for state sync (5s)...")
+            time.sleep(5)
 
         # 6. Execute fastboot.bash
         logging.info(f"Executing flash script: {bash_script}")
@@ -159,6 +165,15 @@ class FlashManager:
                     logging.info("Applying --no-wipe: Stripping userdata erase/wipe commands from flash script.")
                     content = content.replace('fastboot erase userdata', '# fastboot erase userdata')
                     content = content.replace('fastboot -w', '# fastboot -w')
+                    modified = True
+            
+            # 3. Inject Serial into fastboot commands within the script
+            if self.serial:
+                logging.info(f"Injecting serial {self.serial} into fastboot commands in the script.")
+                # Replace 'fastboot ' with 'fastboot -s <serial> '
+                # Use a regex-like approach or simple string replacement if safe
+                if 'fastboot ' in content and f'-s {self.serial}' not in content:
+                    content = content.replace('fastboot ', f'fastboot -s {self.serial} ')
                     modified = True
             
             if modified:

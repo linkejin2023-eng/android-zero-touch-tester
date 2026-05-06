@@ -28,6 +28,7 @@
 | **[T70] Phase 6: CI 通知工業化** | 完結 | **100%** | 模組化專業通知、環境假失敗豁免邏輯 (Honest Exit Code) | 2026-04-16 |
 | **[T70] Phase 7: 工業級加固與自癒機制** | 完結 | **100%** | 全路徑 INFRA_ERROR 報警、Factory Reset 劫持防護、智慧清理、預覽工具 | 2026-04-21 |
 | **[T70] Phase 8: 工業化配置系統** | 完結 | **100%** | 動態 Profile 加載 (--profile)、SKIPPED 統計模型、測項細粒度攔截、報表溯源 | 2026-04-23 |
+| **[T70] Phase 9: 偵測引擎工業化 (Stage 0.5)** | 完結 | **100%** | 實作多 VID 靜默掃描、USB 起算計時 (15s)、**多機台 SN 平行支援** | 2026-05-06 |
 
 ---
 
@@ -94,6 +95,12 @@ python3 main.py --flash /path/to/fastboot.zip --sku china
 #### 情境 C: 僅繞過 OOBE (不燒錄，僅執行 AOA 盲打與 ADB 授權)
 ```bash
 python3 main.py --oobe-only --sku china
+```
+
+### 3. 多機台併發支援 (--serial)
+在多機台環境下，可透過序號鎖定特定裝置，Stage 0.5 會自動過濾 USB 總線：
+```bash
+python3 main.py --serial <SN_ID> --oobe --sku gms
 ```
 
 
@@ -196,6 +203,9 @@ python3 preview_notification.py
 - `--report-dir <path>`: 指定 HTML 報表輸出目錄 (預設為 `reports/`)。
 - `--build <version>`: 指定編譯版本（用於報表命名）。**[手動測試可省略，自動從機台偵測]**
 - `--type <user|userdebug>`: 指定編譯類型。**[手動測試可省略，自動從機台偵測]**
+- `--serial <SN_ID>`: **多機台併發支援**。
+    - **行為準則 (若未帶參數)**：系統將進入「自動鎖定第一台」模式，鎖定首台偵測到的 T70 (ADB/USB) 並緩存其身分（Identity Persistence），確保 HID 盲打與測試流程不發生干擾。
+    - **建議**：多機台並行測試時務必顯式指定此參數。
 
 ### 5. 智慧郵件預覽工具
 在正式發送 CI 通知前，可以使用預覽工具檢查信件格式與路徑判定：

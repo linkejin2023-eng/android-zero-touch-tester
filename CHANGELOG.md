@@ -1,4 +1,29 @@
 # Changelog
+所有關於 Android Sanity Test 自動化框架的顯著變更將記載於此。
+
+## [2.1.0] - 2026-05-06
+- **Tool Version 重大更新**: 框架版本正式邁入 2.0 時代，整合工業級燒錄與偵測架構。
+- **首次新增：多機台併發鎖定支援**: 實作 `--serial` 精確鎖定機制，支援多台 T70 同時掛載且偵測/HID 指令互不干擾。
+
+### Added
+- **Stage 0.5 偵測引擎 (Smart Multi-PID Detection)**: 實作全新的開機監測階段，支援同時輪詢 ADB 與多種 USB 身分 (Qualcomm 05c6, Trimble 099e, Google AOA 18d1)。
+- **USB 起算計時機制**: 將 15 秒的 ADB 等待緩衝改為從「首次偵測到 USB 裝置」起算，精確解決 userdebug 韌體開機緩慢導致誤跳 AOA 流程的問題。
+
+### Fixed
+- **Fastboot 誤認修復**: 透過 PID 精確比對 (排除 d001)，解決裝置重啟過程中因 Google VID 導致的 AOA 提前跳轉錯誤。
+- **HID 銜接斷層**: 優化 `run_oobe_bypass` 銜接邏輯，消除 Stage 1 入口處長達 80 秒的無效搜尋噴錯。
+
+### Changed
+- **Log 淨化與專業化**: 移除所有 `timeout=0s` 刷屏，加入明確的 Stage 0.5 提示標籤 (Timeout: 120s)，並優化 Bypass 成功訊息。
+- **冗餘檢查移除**: 移除測試開始前多餘的連線等待，整合進統一的環境就緒檢查。
+
+## [2.0.2] - 2026-05-05
+### Fixed
+- **HID 導航精度**：大幅優化時序，拉長 `TAB` (1.0s) 與 `SYS_BACK` (1.5s) 冷卻時間，解決 GMS 穩定版導航偏移。
+- **單機模式修復**：修復未指定 `--serial` 時，Factory Reset 階段因序號為 `None` 導致的查找失敗。
+
+### Changed
+- **Userdebug 快速通關**：將 Flash 後的 ADB 等待超時從 8s 延長至 60s，確保在 userdebug 韌體下能穩定觸發快速跳轉。
 
 ## [02.03.00-Resilience] - 2026-04-28
 ### Added

@@ -1,15 +1,15 @@
 # Environmentally Stable Profile
 # Used for environments where WiFi APs or GPS signals are unstable.
 modules:
-  reboot: true
-  firmware: true
+  reboot: false
+  firmware: false
   audio: false
   camera: false
   connectivity: false
-  sensors: false
+  sensors: true
   power: false
   nfc: false
-  gps: false
+  gps: true
   auto_factory_reset: true
 
 exclude_items:

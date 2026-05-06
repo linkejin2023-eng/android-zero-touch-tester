@@ -16,3 +16,4 @@ exclude_items:
   - "WiFi AP Connection"
   - "GPS Antenna Signal"
   - "Tag Read Verification" # NFC item is now PARTIAL, can be excluded if no tag present
+  - "WWAN Data Transfer"

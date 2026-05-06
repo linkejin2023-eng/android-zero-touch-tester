@@ -15,7 +15,19 @@ from framework.tests import (
 
 from framework.flash_manager import FlashManager
 
+VERSION = "2.1.0"
+
 def main():
+    # Initialize logging first to ensure visibility
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.StreamHandler(sys.stdout)
+        ]
+    )
+    
+    logging.info(f"--- Starting Android Sanity Test Automation v{VERSION} ---")
     parser = argparse.ArgumentParser(description="Android Sanity Test Automation Framework")
     parser.add_argument("--flash", type=str, help="Path to firmware ZIP to flash before testing")
     parser.add_argument("--oobe", action="store_true", help="Bypass OOBE and then proceed to full tests")
@@ -30,15 +42,20 @@ def main():
     parser.add_argument("--build", type=str, default="Unknown", help="Build version number for report naming [Auto-detected if omitted]")
     parser.add_argument("--type", type=str, default="user", choices=["user", "userdebug"], help="Build variant for report naming [Auto-detected if omitted]")
     parser.add_argument("--profile", type=str, default="full_smoke", help="Testing profile name or path (default: full_smoke)")
+    parser.add_argument("--serial", type=str, help="Target device serial number")
     args = parser.parse_args()
+
+    # Set target serial globally
+    from framework.adb_helper import set_global_serial
+    set_global_serial(args.serial)
 
     # --- Phase -1: Emergency Factory Reset (Expert only) ---
     if args.factory_reset:
         logging.info("--- SHUTDOWN SEQUENCE: FACTORY RESET REQUESTED ---")
         logging.warning("This will wipe the device and ADB authorization will be lost.")
         from hid_gadget import oobe_bypass_script, aoa_driver
-        driver = aoa_driver.AOADriver()
-        if driver.find_device():
+        driver = aoa_driver.AOADriver(serial=args.serial)
+        if driver.find_device(serial=args.serial):
             if driver.switch_to_accessory_mode():
                 driver.register_hid(1, aoa_driver.KB_REPORT_DESC)
                 driver.register_hid(2, aoa_driver.CONSUMER_REPORT_DESC)
@@ -48,8 +65,6 @@ def main():
                 return
         logging.error("Failed to find HID device for factory reset.")
         sys.exit(1)
-
-    logging.info("--- Starting Android Sanity Test Automation ---")
 
     # --- Config Driven Preflight & Execution ---
     # 1. Load Global Environment Config
@@ -86,18 +101,90 @@ def main():
 
     # --- Phase 0: Flashing ---
     if args.flash:
-        logging.info(f"Flash requested with: {args.flash} (No-Wipe: {args.no_wipe})")
-        fm = FlashManager(args.flash, no_wipe=args.no_wipe)
+        logging.info(f"--- Stage 0: Firmware Flashing (Target: {args.serial}) ---")
+        # Use args.flash path directly, fallback to config only if needed (though args.flash is the value here)
+        flash_zip = args.flash
+        from framework.flash_manager import FlashManager
+        fm = FlashManager(flash_zip, no_wipe=args.no_wipe, serial=args.serial)
         if not fm.flash():
             logging.error("Flashing failed. Aborting.")
             sys.exit(1)
         args.oobe = True # Force OOBE bypass after flash
 
     if args.oobe or args.oobe_only:
-        # --- Stage 0: Early ADB Check (Fast-track for userdebug or pre-authorized devices) ---
-        logging.info("Checking if ADB is already available for fast-track bypass...")
-        if wait_for_device(timeout=8):
-            logging.info("ADB detected early! Waiting for system stabilization (sys.boot_completed)...")
+        # --- Stage 0.5: ADB/USB Presence Check (Smart Multi-PID Check) ---
+        logging.info("--- Stage 0.5: Monitoring for ADB or USB device (Timeout: 120s) ---")
+        found_adb = False
+        from hid_gadget.aoa_driver import AOA_VID, AOA_PID_ACC, AOA_PID_ACC_ADB, TRIMBLE_VID, TRIMBLE_PIDS, QUALCOMM_VID
+        import usb.core
+        import subprocess
+
+        target_serial = args.serial
+        usb_first_seen_time = None
+
+        for attempt in range(120): # Total 120s timeout
+            # 1. Quiet ADB Check
+            try:
+                adb_out = subprocess.check_output(["adb", "devices"]).decode()
+                if target_serial:
+                    if f"{target_serial}\tdevice" in adb_out:
+                        found_adb = True
+                        break
+                else:
+                    lines = [line for line in adb_out.splitlines() if "\tdevice" in line]
+                    if lines:
+                        target_serial = lines[0].split("\t")[0]
+                        from framework import adb_helper
+                        adb_helper.GLOBAL_SERIAL = target_serial
+                        found_adb = True
+                        logging.info(f"Stage 0.5: Auto-detected ADB device: {target_serial}")
+                        break
+            except: pass
+
+            # 2. Quiet USB Scan
+            all_devs = usb.core.find(find_all=True)
+            found_usb_target = None
+            for d in all_devs:
+                is_known = False
+                if d.idVendor == TRIMBLE_VID and d.idProduct in TRIMBLE_PIDS: is_known = True
+                elif d.idVendor == QUALCOMM_VID and d.idProduct == 0x901d: is_known = True
+                elif d.idVendor == AOA_VID and d.idProduct in [0x2d00, 0x2d01]: is_known = True
+
+                if is_known:
+                    try:
+                        d_serial = d.serial_number
+                        if not target_serial:
+                            target_serial = d_serial
+                            from framework import adb_helper
+                            adb_helper.GLOBAL_SERIAL = target_serial
+                            logging.info(f"Stage 0.5: Auto-locked onto USB device: {target_serial}")
+                        
+                        if d_serial == target_serial:
+                            found_usb_target = d
+                            break
+                    except: continue
+
+            if found_usb_target:
+                # Case A: AOA mode -> Jump immediately
+                if found_usb_target.idVendor == AOA_VID:
+                    logging.info(f"Stage 0.5: Device {target_serial} already in AOA mode. Jumping to Stage 1.")
+                    break
+                
+                # Case B: Qualcomm/Trimble Mode -> 15s timer from FIRST SIGHT
+                if usb_first_seen_time is None:
+                    usb_first_seen_time = time.time()
+                    logging.info(f"Stage 0.5: USB device {target_serial} detected. Waiting 15s for ADB to wake up...")
+                
+                if time.time() - usb_first_seen_time > 15:
+                    logging.info(f"Stage 0.5: 15s buffer reached for {target_serial} (No ADB). Proceeding to Stage 1.")
+                    break
+            
+            if attempt % 10 == 0:
+                logging.info(f"Stage 0.5: Searching for target device... ({attempt}s)")
+            time.sleep(1)
+
+        if found_adb:
+            logging.info(f"Stage 0.5: ADB detected for {target_serial}!")
             boot_success = False
             for _ in range(30): # Max 60s
                 _, boot_status = run_adb_cmd("getprop sys.boot_completed")
@@ -107,24 +194,18 @@ def main():
                 time.sleep(2)
             
             if boot_success:
-                logging.info("System ready! Skipping HID and using fast-track ADB bypass.")
+                logging.info("ADB detected, forcing bypass Setup Wizard and skipping HID ADB enablement.")
                 run_adb_cmd("settings put global device_provisioned 1")
                 run_adb_cmd("settings put secure user_setup_complete 1")
                 run_adb_cmd("am start -c android.intent.category.HOME -a android.intent.action.MAIN")
                 time.sleep(3)
             else:
-                logging.warning("Wait for boot_completed timed out. Proceeding with standard flow.")
+                logging.warning("Wait for boot_completed timed out. Proceeding anyway.")
         else:
-            # --- Stage 1: HID/AOA OOBE Bypass (No ADB required) ---
+            # --- Stage 1: HID/AOA OOBE Bypass ---
             logging.info("--- Stage 1: HID/AOA OOBE Bypass (No ADB required) ---")
-            logging.info(f"Entering HID synchronization loop (SKU: {args.sku})...")
-            try:
-                from hid_gadget import run_oobe_bypass
-            except ImportError as e:
-                logging.error(f"Failed to import oobe_bypass_script: {e}")
-                sys.exit(1)
-                
-            if not run_oobe_bypass(sku=args.sku, timeout=config.get('oobe_bypass_timeout', 300)):
+            from hid_gadget.oobe_bypass_script import run_oobe_bypass
+            if not run_oobe_bypass(sku=args.sku, serial=target_serial, timeout=config.get('oobe_bypass_timeout', 300)):
                 logging.error("OOBE Bypass failed or timed out.")
                 sys.exit(1)
 
@@ -133,14 +214,14 @@ def main():
             return
 
     # --- Phase 1: Environment Readiness ---
-    # After bypass, ADB should be authorized and ready
-    if not wait_for_device(timeout=60):
-        logging.error("No authorized ADB device detected after OOBE bypass.")
-        if args.only_tests:
-            logging.warning("=== HINT ===")
-            logging.warning("It seems ADB is disabled. If the device is on the 'Welcome' screen,")
-            logging.warning("please run WITHOUT --only-tests (or with --oobe) to enable ADB first.")
+    # 3. Connection Pre-check
+    logging.info("Checking for device availability...")
+    if not wait_for_device(timeout=120):
+        logging.error("Device connection timeout. Aborting tests.")
         sys.exit(1)
+
+    # 4. Initialize UI Automation
+    ui = UIHelper(serial=args.serial)
         
     # Pro-actively bypass Setup Wizard for newly flashed builds (via ADB as backup/second layer)
     if not args.only_tests:
@@ -256,6 +337,7 @@ def main():
         "SU Binary": "Present" if has_su else "Not Found"
     }
     reporter.set_device_info(device_info)
+    reporter.set_tool_info({"version": VERSION})
     
     logging.info(f"Target Device: {device_info['Brand']} {device_info['Model']}")
     
@@ -272,7 +354,7 @@ def main():
 
     # Initialize UI Automator
     try:
-        ui = UIHelper()
+        ui = UIHelper(serial=args.serial)
     except Exception as e:
         reporter.add_result("System", "UIAutomator Initialization", False, f"Failed to start uiautomator2 agent: {e}")
         reporter.finalize(time.time() - start_time, version=final_build_id, variant=args.type)
@@ -398,8 +480,20 @@ def main():
         
         try:
             from hid_gadget import oobe_bypass_script, aoa_driver, run_oobe_bypass
-            driver = aoa_driver.AOADriver()
-            if driver.find_device():
+            
+            # --- Robust Serial Recovery ---
+            target_sn = args.serial
+            if not target_sn:
+                from framework import adb_helper
+                target_sn = adb_helper.GLOBAL_SERIAL
+                if not target_sn:
+                    devices = adb_helper.list_adb_devices()
+                    if devices:
+                        target_sn = devices[0]
+                        logging.info(f"Dynamically recovered target serial for reset: {target_sn}")
+            
+            driver = aoa_driver.AOADriver(serial=target_sn)
+            if driver.find_device(serial=target_sn):
                 if driver.switch_to_accessory_mode():
                     driver.register_hid(1, aoa_driver.KB_REPORT_DESC)
                     driver.register_hid(2, aoa_driver.CONSUMER_REPORT_DESC)
@@ -413,7 +507,7 @@ def main():
                     time.sleep(20)
                     
                     logging.info("Attempting OOBE Bypass & ADB Enablement after reset...")
-                    if run_oobe_bypass(sku=args.sku, timeout=config.get('oobe_bypass_timeout', 600)):
+                    if run_oobe_bypass(sku=args.sku, serial=target_sn, timeout=config.get('oobe_bypass_timeout', 600)):
                         logging.info("Bypass successful. Waiting for ADB...")
                         if wait_for_device(timeout=60):
                             # Final Provisioning (Wait for system ready to ensure commands stick)

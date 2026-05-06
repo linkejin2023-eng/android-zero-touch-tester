@@ -1,4 +1,4 @@
-from framework.adb_helper import run_adb_cmd, check_service_running
+from framework.adb_helper import run_adb_cmd, check_service_running, adb_pull
 from framework.ui_automator import UIHelper
 from framework.report_generator import HTMLReportGenerator
 import time
@@ -129,20 +129,20 @@ def run_tests(ui: UIHelper, reporter: HTMLReportGenerator, specs=None, selectors
                 
                 if find_out.strip():
                     latest_file = find_out.strip().split('\n')[-1]
-                    import subprocess
-                    host_tmp_path = "/tmp/audio_verify.amr"
-                    subprocess.run(f"adb pull {latest_file} {host_tmp_path}", shell=True, capture_output=True)
-                    
-                    try:
-                        with open(host_tmp_path, "rb") as f:
-                            data = f.read(2000)
-                            e_score = len(set(data))
-                        if e_score > entropy_threshold:
-                            reporter.add_result("Audio", "Microphone Hardware Verification", True, f"PASS (Score: {e_score})")
-                        else:
-                            reporter.add_result("Audio", "Microphone Hardware Verification", False, f"FAIL (Score: {e_score})")
-                    except:
-                        reporter.add_result("Audio", "Microphone Hardware Verification", False, "Analysis Error")
+                    host_tmp_path = f"/tmp/audio_verify_{int(time.time())}.amr"
+                    if adb_pull(latest_file, host_tmp_path):
+                        try:
+                            with open(host_tmp_path, "rb") as f:
+                                data = f.read(2000)
+                                e_score = len(set(data))
+                            if e_score > entropy_threshold:
+                                reporter.add_result("Audio", "Microphone Hardware Verification", True, f"PASS (Score: {e_score})")
+                            else:
+                                reporter.add_result("Audio", "Microphone Hardware Verification", False, f"FAIL (Score: {e_score})")
+                        except Exception as e:
+                            reporter.add_result("Audio", "Microphone Hardware Verification", False, f"Analysis Error: {e}")
+                    else:
+                        reporter.add_result("Audio", "Microphone Hardware Verification", False, "Failed to pull audio file from device")
                 else:
                     reporter.add_result("Audio", "Microphone Recording", False, "No new audio file found")
             else:
