@@ -2,7 +2,7 @@
 # Used for environments where WiFi APs or GPS signals are unstable.
 modules:
   reboot: false
-  firmware: false
+  firmware: true
   audio: false
   camera: false
   connectivity: false
@@ -10,7 +10,7 @@ modules:
   power: false
   nfc: false
   gps: true
-  auto_factory_reset: true
+  auto_factory_reset: false
 
 exclude_items:
   - "WiFi AP Connection"

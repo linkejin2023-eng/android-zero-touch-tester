@@ -22,7 +22,7 @@ AOA_PID_RECOVERY = 0xD001
 # Trimble T70 specific IDs
 TRIMBLE_VID = 0x099e
 QUALCOMM_VID = 0x05c6
-TRIMBLE_PIDS = [0x02b1, 0x02b3, 0x02b5, 0x901d]
+TRIMBLE_PIDS = [0x02b1, 0x02b3, 0x02b5, 0x02b6, 0x901d]
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 

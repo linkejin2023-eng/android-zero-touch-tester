@@ -1,7 +1,8 @@
 import time
 import logging
 import math
-from framework.adb_helper import run_adb_cmd
+import os
+from framework.adb_helper import run_adb_cmd, adb_install
 
 def stdev(data):
     n = len(data)
@@ -32,14 +33,90 @@ def get_sensor_events(name_filter, dump_content):
                     pass
     return events
 
+def ensure_sensorbox_ready():
+    """Ensure SensorBox is installed and screen is ready"""
+    pkg = "imoblife.androidsensorbox"
+    apk_path = "framework/tests/app_for_test/sensorbox_6.92-26_minAPI.apk"
+    
+    # 1. Wakeup & Unlock
+    logging.info("Ensuring device is awake and unlocked...")
+    run_adb_cmd("input keyevent KEYCODE_WAKEUP")
+    run_adb_cmd("wm dismiss-keyguard")
+    
+    # 2. Check installation
+    ret, out = run_adb_cmd(f"pm list packages {pkg}")
+    if pkg not in out:
+        logging.info(f"Installing {pkg} with auto-grant...")
+        if os.path.exists(apk_path):
+            if not adb_install(apk_path):
+                logging.error(f"Failed to install {pkg}")
+                return False
+        else:
+            logging.error(f"APK not found at {apk_path}")
+            return False
+    
+    # 3. Grant key permissions just in case
+    run_adb_cmd(f"pm grant {pkg} android.permission.ACCESS_FINE_LOCATION")
+    run_adb_cmd(f"pm grant {pkg} android.permission.CAMERA")
+    return True
+
+def trigger_sensorbox_activation(ui):
+    """Navigate SensorBox UI to wake up sensors using u2 text search"""
+    pkg = "imoblife.androidsensorbox"
+    
+    logging.info("Launching SensorBox via UIHelper...")
+    ui.launch_app(pkg)
+    
+    time.sleep(5) # Give more time for the app to settle
+    
+    # Use UIAutomator2 for robust clicking
+    try:
+        # Dismiss any initial dialogs (Allow, OK, etc.)
+        for _ in range(3):
+            for btn_text in ["Allow", "OK", "ACCEPT", "Agree"]:
+                if ui.d(text=btn_text).exists(timeout=2):
+                    logging.info(f"Dismissing dialog with button: {btn_text}")
+                    ui.d(text=btn_text).click()
+                    time.sleep(1)
+        
+        # Helper to click and return
+        def activate_sensor(btn_id, name):
+            logging.info(f"Activating {name} via {btn_id}...")
+            # Ensure we are on the main screen by re-launching (fast)
+            ui.launch_app(pkg)
+            time.sleep(1)
+            btn = ui.d(resourceId=f"{pkg}:id/{btn_id}")
+            if btn.exists(timeout=5):
+                btn.click()
+                time.sleep(4) # Give more time for data to flow
+                run_adb_cmd("input keyevent KEYCODE_BACK")
+                time.sleep(2)
+            else:
+                logging.warning(f"Button {btn_id} for {name} not found")
+
+        # Wake up sensors one by one
+        activate_sensor("iv_gyro", "Gyroscope")
+        activate_sensor("iv_orien", "Orientation")
+        activate_sensor("iv_magn", "Magnetometer")
+            
+    except Exception as e:
+        logging.error(f"UI interaction failed: {e}")
+        # Fallback to simple wait if UI fails
+        time.sleep(2)
+
 def run_sensors_tests(ui, reporter, specs=None, excluded=None):
     if not excluded: excluded = []
-    """Entry point for Sensors module - Finalized for T70"""
+    """Entry point for Sensors module - Optimized with SensorBox"""
     if not specs: specs = {}
-    logging.info("T70 Sensor Final Activation...")
-    run_adb_cmd("am start -a android.intent.action.VIEW -d 'geo:0,0?z=18'")
-    time.sleep(3)
-    # Aggressive Jitter
+    
+    if ensure_sensorbox_ready():
+        trigger_sensorbox_activation(ui)
+    else:
+        logging.warning("SensorBox setup failed, falling back to legacy jitter...")
+        run_adb_cmd("am start -a android.intent.action.VIEW -d 'geo:0,0?z=18'")
+        time.sleep(3)
+
+    # Aggressive Jitter (Keep for legacy support)
     for _ in range(2):
         run_adb_cmd("input swipe 100 100 900 900 100")
         run_adb_cmd("input swipe 900 100 100 900 100")
@@ -48,6 +125,8 @@ def run_sensors_tests(ui, reporter, specs=None, excluded=None):
     logging.info("Capturing final sensorservice dump...")
     _, dump_out = run_adb_cmd("dumpsys sensorservice")
     
+    # Cleanup
+    run_adb_cmd("am force-stop imoblife.androidsensorbox")
     run_adb_cmd("am force-stop com.google.android.apps.maps")
     run_adb_cmd("am start -c android.intent.category.HOME -a android.intent.action.MAIN")
 
@@ -62,7 +141,7 @@ def run_sensors_tests(ui, reporter, specs=None, excluded=None):
         {"id": "Accelerometer", "keywords": ["Accelerometer"], "threshold": accel_thresh},
         {"id": "Gyroscope",     "keywords": ["Gyroscope", "Rotation Vector"], "threshold": gyro_thresh},
         {"id": "Magnetometer",  "keywords": ["Magnetometer"], "threshold": mag_thresh},
-        {"id": "e-Compass",     "keywords": ["Rotation Vector", "Geomagnetic"], "threshold": compass_thresh},
+        {"id": "e-Compass",     "keywords": ["Rotation Vector", "Geomagnetic", "Orientation", "sns_geomag_rv"], "threshold": compass_thresh},
         {"id": "Light Sensor",  "keywords": ["Ambient Light", "Light Sensor"], "threshold": light_thresh}
     ]
     
@@ -94,8 +173,6 @@ def run_sensors_tests(ui, reporter, specs=None, excluded=None):
             z_vals = [e[2] for e in events]
             total_entropy = stdev(x_vals) + stdev(y_vals) + stdev(z_vals)
             
-            # T70 Logic: If we see at least 10 events (the max buffer for fusion), 
-            # we consider it alive even if stationary on desk.
             if total_entropy >= threshold or len(events) >= 10:
                 reporter.add_result("Sensors", f"{ui_name} (Entropy)", True, 
                                     f"PASS (Source: {best_k}, Var: {total_entropy:.9f}, Events: {len(events)})")

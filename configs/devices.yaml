@@ -1,0 +1,15 @@
+# T70 Device Assignment Registry
+# Used for multi-device environments to separate SKU testing.
+
+sku_binding:
+  gms: "DBB253800103"    # Default GMS machine
+  china: "DBB252400022"  # Default China machine
+
+# Detailed inventory (optional, for record keeping)
+inventory:
+  - sn: "DBB253800103"
+    label: "T70-GMS-Lab"
+    sku_support: ["gms"]
+  - sn: "DBB252400022"
+    label: "T70-China-Lab"
+    sku_support: ["china"]

@@ -1,6 +1,30 @@
 # Changelog
 所有關於 Android Sanity Test 自動化框架的顯著變更將記載於此。
 
+## [2.1.3] - 2026-05-07
+### Fixed
+- **UI 點擊可靠性強化**: 
+  - 改用 `resourceId` (`iv_gyro`, `iv_magn`) 取代文字搜尋，解決多行文字匹配與語系問題。
+  - 新增「自動處理權限彈窗與歡迎視窗」邏輯，確保在 Factory Reset 後的首次執行不會被中斷。
+  - 優化捲動邏輯，確保 Magnetic 感測器在各類螢幕長度下皆能被正確搜尋。
+
+## [2.1.2] - 2026-05-07
+### Fixed
+- **ADB 指令呼叫修正**: 修復了 `adb_install` 被錯誤地透過 `adb shell` 呼叫導致安裝失敗的關鍵 Bug。
+- **UI 導航穩定性**: 
+  - 修正了 `UIHelper` 物件被誤當作 callable 呼叫的錯誤。
+  - 將感測器喚醒從座標點擊改為 **UIAutomator2 文字搜尋點擊**。
+  - 增加自動捲動支援，確保在長螢幕裝置（如 18:9）上能正確觸發位於下方的磁力計測試。
+
+## [2.1.1] - 2026-05-07
+### Added
+- **感測器自動化喚醒強化 (Deterministic Sensor Activation)**: 整合 `SensorBox` APK 並透過動態九宮格座標計算 (wm size)，實作對陀螺儀 (Gyroscope) 與磁力計 (Magnetometer) 的強制喚醒。
+- **APK 自動化部署**: 支援測試前自動安裝 `sensorbox` 並透過 `-g` 參數實現權限自動預授權，解決 China SKU 無 GMS 的測試斷層。
+- **螢幕與 Keyguard 智慧解鎖**: 在測試流程中加入 `KEYCODE_WAKEUP` 與 `wm dismiss-keyguard`，確保感測器測試在 Active 視窗下進行。
+
+### Changed
+- **測試流程解耦**: 移除對不穩定的 Google Maps Intent (`geo:0,0`) 之依賴，顯著降低 GMS SKU 在 custom 測試模式下的 False Positive (Sensor Inactive) 機率。
+
 ## [2.1.0] - 2026-05-06
 - **Tool Version 重大更新**: 框架版本正式邁入 2.0 時代，整合工業級燒錄與偵測架構。
 - **首次新增：多機台併發鎖定支援**: 實作 `--serial` 精確鎖定機制，支援多台 T70 同時掛載且偵測/HID 指令互不干擾。

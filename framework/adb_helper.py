@@ -82,6 +82,21 @@ def adb_push(local_path: str, remote_path: str, timeout: int = 60) -> bool:
         logging.error(f"ADB Push Failed: {e}")
         return False
 
+def adb_install(apk_path: str, timeout: int = 120) -> bool:
+    """Installs an APK using the global serial."""
+    cmd = ["adb"]
+    if GLOBAL_SERIAL:
+        cmd.extend(["-s", GLOBAL_SERIAL])
+    # -r: reinstall, -g: grant all permissions
+    cmd.extend(["install", "-r", "-g", apk_path])
+    try:
+        logging.info(f"ADB Install: {apk_path}")
+        subprocess.run(cmd, capture_output=True, check=True, timeout=timeout)
+        return True
+    except Exception as e:
+        logging.error(f"ADB Install Failed: {e}")
+        return False
+
 def wait_for_device(timeout: int = 300) -> bool:
     """Blocks until an authorized ADB device is found or timeout reached."""
     start_time = time.time()
