@@ -82,21 +82,30 @@ def trigger_sensorbox_activation(ui):
         # Helper to click and return
         def activate_sensor(btn_id, name):
             logging.info(f"Activating {name} via {btn_id}...")
-            # Ensure we are on the main screen by re-launching (fast)
-            ui.launch_app(pkg)
-            time.sleep(1)
-            btn = ui.d(resourceId=f"{pkg}:id/{btn_id}")
-            if btn.exists(timeout=5):
-                btn.click()
-                time.sleep(4) # Give more time for data to flow
-                run_adb_cmd("input keyevent KEYCODE_BACK")
-                time.sleep(2)
-            else:
-                logging.warning(f"Button {btn_id} for {name} not found")
+            # Try to find button, if not found, maybe we are stuck in sub-page or splash
+            for retry in range(2):
+                btn = ui.d(resourceId=f"{pkg}:id/{btn_id}")
+                if btn.exists(timeout=3):
+                    btn.click()
+                    time.sleep(5) # Give more time for data to flow
+                    run_adb_cmd("input keyevent KEYCODE_BACK")
+                    time.sleep(2)
+                    return True
+                else:
+                    logging.info(f"Button {btn_id} not visible, trying to recover (BACK)...")
+                    run_adb_cmd("input keyevent KEYCODE_BACK")
+                    time.sleep(2)
+                    # If it's Magnetic, try scrolling
+                    if btn_id == "iv_magn":
+                        try:
+                            ui.d(scrollable=True).scroll.to(resourceId=f"{pkg}:id/{btn_id}")
+                        except: pass
+            
+            logging.warning(f"Button {btn_id} for {name} NOT FOUND after retries")
+            return False
 
         # Wake up sensors one by one
         activate_sensor("iv_gyro", "Gyroscope")
-        activate_sensor("iv_orien", "Orientation")
         activate_sensor("iv_magn", "Magnetometer")
             
     except Exception as e:
@@ -141,7 +150,6 @@ def run_sensors_tests(ui, reporter, specs=None, excluded=None):
         {"id": "Accelerometer", "keywords": ["Accelerometer"], "threshold": accel_thresh},
         {"id": "Gyroscope",     "keywords": ["Gyroscope", "Rotation Vector"], "threshold": gyro_thresh},
         {"id": "Magnetometer",  "keywords": ["Magnetometer"], "threshold": mag_thresh},
-        {"id": "e-Compass",     "keywords": ["Rotation Vector", "Geomagnetic", "Orientation", "sns_geomag_rv"], "threshold": compass_thresh},
         {"id": "Light Sensor",  "keywords": ["Ambient Light", "Light Sensor"], "threshold": light_thresh}
     ]
     

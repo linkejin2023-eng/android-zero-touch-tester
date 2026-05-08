@@ -349,8 +349,26 @@ def run_oobe_bypass(sku="gms", serial=None, timeout=600):
 
     while time.time() - start < timeout:
         if is_adb_ready():
-            logging.info("ADB detected (Fast-track)! Skipping HID.")
-            return True
+            # 檢查是否真的進入桌面，而非只是 ADB 通了 (針對 China SKU OOBE 攔截問題)
+            from framework import adb_helper
+            _, out = adb_helper.run_adb_cmd("dumpsys window | grep -E 'mCurrentFocus|mFocusedApp'")
+            if "Launcher" in out or "TabActivity" in out:
+                logging.info("ADB detected & Launcher is active. Skipping HID.")
+                return True
+            else:
+                logging.info("ADB detected but OOBE still active. Attempting ADB-based bypass...")
+                adb_helper.run_adb_cmd("settings put global device_provisioned 1")
+                adb_helper.run_adb_cmd("settings put secure user_setup_complete 1")
+                if sku == "china":
+                    adb_helper.run_adb_cmd("pm disable com.pega.eulacn")
+                adb_helper.run_adb_cmd("am start -c android.intent.category.HOME -a android.intent.action.MAIN")
+                time.sleep(2)
+                # 再次檢查是否成功跳轉
+                _, out_after = adb_helper.run_adb_cmd("dumpsys window | grep -E 'mCurrentFocus|mFocusedApp'")
+                if "Launcher" in out_after:
+                    logging.info("ADB-based bypass successful.")
+                    return True
+                logging.warning("ADB-based bypass failed to reach Launcher, proceeding with HID sequence...")
 
         if driver.find_device(serial=target_serial):
             # 如果是自動鎖定序號，回寫到全域

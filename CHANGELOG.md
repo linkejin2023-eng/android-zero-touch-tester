@@ -1,6 +1,40 @@
 # Changelog
 所有關於 Android Sanity Test 自動化框架的顯著變更將記載於此。
 
+## [2.1.8] - 2026-05-08
+### Fixed
+- **Phase 1 OOBE 繞過修正**: 
+  - 修正了在測試初始化階段 (Phase 1) 針對 China SKU 繞過 OOBE 的邏輯。
+  - 補上了 `pm disable com.pega.eulacn` 指令，確保測試開始前機台能從 OOBE 畫面穩定跳轉至桌面，避免 UI 測試被遮擋。
+
+## [2.1.7] - 2026-05-08
+### Fixed
+- **China SKU OOBE 繞過優化**: 
+  - 修正了在 China SKU 機台 Factory Reset 後，即使 ADB 已連線仍會卡在 `com.pega.eulacn` 引導畫面的問題。
+  - 在 `oobe_bypass_script.py` 的 Fast-track 階段新增 Top Activity 偵測，若偵測到 OOBE 頁面則自動執行 `pm disable com.pega.eulacn` 強制繞過。
+  - 同步更新 `main.py` 的 Phase 99 驗證邏輯，確保 China SKU 能穩定回歸桌面進行後續校準。
+
+## [2.1.6] - 2026-05-07
+### Fixed
+- **感測器喚醒機制二次優化**: 
+  - 移除了每次喚醒感測器時強制重啟 App 的邏輯（避免重複觸發 Splash Screen 與權限彈窗）。
+  - 新增「頁面狀態恢復 (Recovery)」邏輯：若找不到按鈕，會嘗試發送 BACK 鍵回歸主頁面並重試。
+  - 增加進入感測器子頁面後的數據等待時間 (5s)，確保 `dumpsys` 能捕捉到足夠的 Events。
+  - 為 `iv_magn` (Magnetometer) 恢復了自動捲動機制，確保長螢幕機台的相容性。
+
+## [2.1.5] - 2026-05-07
+### Changed
+- **安全性預檢機制優化**: 
+  - 將原本在 USER build 偵測到安全風險（如 SELinux Permissive, ADB Root）會中斷測試的行為改為「非阻斷式警告」。
+  - 即使環境不安全也會繼續執行後續測試項目，以支援更彈性的 Debug 與分析需求。
+  - 在報告中以 `SECURITY ALERT (WARNING)` 標註不安全狀態。
+
+## [2.1.4] - 2026-05-07
+### Changed
+- **測試項目精簡**: 移除 **e-Compass** 測試。
+  - **原因**: e-Compass 在 Android 中多為軟體融合數據 (Fused Sensor)，其硬體基礎與 **Magnetometer (磁力計)** 完全重疊。為符合 Smoke Test 快速驗證硬體存活的原則，決定移除冗餘項，改以 Magnetometer 作為磁性模組的唯一驗證基準。
+  - **優化**: 同步移除 SensorBox 中的 Orientation 喚醒步驟，縮短測試耗時約 7 秒。
+
 ## [2.1.3] - 2026-05-07
 ### Fixed
 - **UI 點擊可靠性強化**: 

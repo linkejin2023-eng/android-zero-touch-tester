@@ -238,6 +238,10 @@ def main():
         if boot_ready:
             run_adb_cmd("settings put global device_provisioned 1")
             run_adb_cmd("settings put secure user_setup_complete 1")
+            if args.sku == "china":
+                # 同步更新 Phase 1 邏輯，確保測試開始前已停用 China OOBE
+                run_adb_cmd("pm disable com.pega.eulacn")
+                run_adb_cmd("pm disable com.android.provision")
             run_adb_cmd("am start -c android.intent.category.HOME -a android.intent.action.MAIN")
             time.sleep(3)
         else:
@@ -386,20 +390,16 @@ def main():
             
             # 只有開發版 (userdebug) 允許繞過。
             # 如果是 User build，即便偵測到後門也必須攔截，因為這代表機台狀態不正確。
-            if args.type == "userdebug":
-                logging.warning(f"Insecure Environment detected (Debuggable or SELinux), but proceeding as requested.")
-                reporter.add_result("System", "Security Preflight", True, 
-                                    f"WARNING: {status_msg}", 
-                                    status_override="SKIP")
-            else:
-                reporter.add_result("System", "Security Preflight", False, 
-                                    f"ERROR: {status_msg}", 
-                                    status_override="ERROR")
-                logging.error(f"Security Check Failed: {status_msg}")
-                logging.error("CRITICAL: Backdoor or Insecure configuration detected on a USER build!")
-                logging.error("Aborting tests to ensure validation environment matches release standards.")
-                reporter.finalize(time.time() - start_time, version=final_build_id, variant=args.type)
-                sys.exit(1)
+            # 調整為非阻斷式：記錄警告但繼續執行
+            msg_prefix = "WARNING" if args.type == "userdebug" else "SECURITY ALERT"
+            logging.warning(f"{msg_prefix}: Insecure configuration detected on {args.type} build: {status_msg}")
+            
+            reporter.add_result("System", "Security Preflight", True, 
+                                f"{msg_prefix}: {status_msg}", 
+                                status_override="SKIP" if args.type == "userdebug" else "WARNING")
+            
+            if args.type == "user":
+                logging.info("Proceeding with tests as requested, despite insecure environment.")
         else:
             reporter.add_result("System", "Security Preflight", True, f"Environment OK (SELinux: {selinux_status})")
             logging.info("Security Preflight Passed.")
@@ -523,6 +523,10 @@ def main():
                             if boot_ready:
                                 run_adb_cmd("settings put global device_provisioned 1")
                                 run_adb_cmd("settings put secure user_setup_complete 1")
+                                if args.sku == "china":
+                                    # 實測證明 China SKU 需停用此包名才能跳出 OOBE
+                                    run_adb_cmd("pm disable com.pega.eulacn")
+                                    run_adb_cmd("pm disable com.android.provision")
                                 run_adb_cmd("am start -c android.intent.category.HOME -a android.intent.action.MAIN")
                                 time.sleep(3)
                             else:

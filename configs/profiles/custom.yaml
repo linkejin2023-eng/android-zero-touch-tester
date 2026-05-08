@@ -10,7 +10,7 @@ modules:
   power: false
   nfc: false
   gps: true
-  auto_factory_reset: false
+  auto_factory_reset: true
 
 exclude_items:
   - "WiFi AP Connection"

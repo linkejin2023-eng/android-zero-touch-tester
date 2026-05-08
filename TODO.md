@@ -33,7 +33,8 @@
 - [x] **#24 Stage 0.5 Smart Polling Engine**: (2026-05-06 已完成) 實作 15s USB 起算計時與多 VID 精確偵測。
 - [x] [Sensors] 整合 SensorBox (imoblife.androidsensorbox) 自動化安裝與啟動: (2026-05-07 已完成, 已修復 ADB install 呼叫錯誤)
 - [x] [Sensors] 優化傳感器喚醒機制：改用 SensorBox u2 文字偵測點擊觸發，支援跨解析度捲動。
-- [x] [Sensors] 適配 SKU 特定的傳感器關鍵字: 已整合於 Entropy 分析邏輯。
+- [x] [Sensors] 精簡重複項目: 已移除 e-Compass，保留 Magnetometer 作為磁性硬體校準基準。
+- [x] [OOBE] China SKU OOBE 繞過優化: 已整合 `com.pega.eulacn` 自動偵測與停用邏輯。
 - [ ] **#15 壓力測試模組 (Stress Test Module)**: 擴充 Reboot / Suspend 壓力循環腳本。
 * [/] **#23 統一主控器 (Unified Orchestrator)**: **(開發中)** 整合 Bash 入口至 `orchestrator.py`。
 
