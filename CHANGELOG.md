@@ -1,6 +1,15 @@
 # Changelog
 所有關於 Android Sanity Test 自動化框架的顯著變更將記載於此。
 
+## [2.1.9] - 2026-05-08
+### Added
+- **ADB 極速重置 (Fast Reset)**: 
+  - 實作 `trigger_recovery_wipe()` 函式，優先使用 `adb shell cmd recovery wipe` 進行原廠重置。
+  - 具備自動連線異常處理與 5s 心跳監控，失敗時自動回退 (Fallback) 至 HID 模擬導航模式。
+- **China SKU Settings 彈窗智慧排除**:
+  - 針對 ADB 已開啟的 China SKU 裝置，在測試開始前自動偵測並點擊 Settings 頁面的簡體「确定」彈窗。
+  - 透過 `UIHelper.ensure_settings_ready()` 確保 UI 測試路徑不被「用户须知」遮擋。
+
 ## [2.1.8] - 2026-05-08
 ### Fixed
 - **Phase 1 OOBE 繞過修正**: 

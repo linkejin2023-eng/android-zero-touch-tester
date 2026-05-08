@@ -186,3 +186,47 @@ def keep_screen_on(enable: bool):
         run_adb_cmd("input keyevent 224") # Wake up
     else:
         run_adb_cmd("settings put global stay_on_while_plugged_in 0")
+
+def trigger_recovery_wipe() -> bool:
+    """
+    Attempts to trigger a factory reset via 'cmd recovery wipe'.
+    Handles the immediate disconnection (Broken pipe/Connection reset).
+    Returns True if the command was sent and the device went offline.
+    """
+    adb_base = "adb"
+    if GLOBAL_SERIAL:
+        adb_base = f"adb -s {GLOBAL_SERIAL}"
+    
+    cmd = f"{adb_base} shell cmd recovery wipe"
+    logging.info(f"Triggering Fast Reset: {cmd}")
+    
+    try:
+        # We use a short timeout because the command should trigger immediate reboot
+        subprocess.run(cmd, shell=True, timeout=5, capture_output=True)
+    except Exception as e:
+        # Common errors when device reboots immediately
+        err_str = str(e).lower()
+        if "broken pipe" in err_str or "connection reset" in err_str:
+            logging.info("Connection severed as expected (Fast Reset initiated).")
+        elif "timeout" in err_str:
+            logging.debug("ADB command timed out, checking heartbeat...")
+        else:
+            logging.warning(f"Unexpected result during fast reset command: {e}")
+            
+    # Heartbeat check: device should go offline within 5-7s
+    logging.info("Monitoring for device offline status (7s heartbeat)...")
+    for _ in range(7):
+        time.sleep(1)
+        serials = list_adb_devices()
+        if GLOBAL_SERIAL:
+            if GLOBAL_SERIAL not in serials:
+                logging.info(f"Device {GLOBAL_SERIAL} is now offline. Fast Reset confirmed.")
+                return True
+        else:
+            if not serials:
+                logging.info("No ADB devices found. Fast Reset confirmed.")
+                return True
+                
+    logging.error("Device remained online after 'cmd recovery wipe'. Fast Reset failed.")
+    return False
+

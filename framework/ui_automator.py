@@ -55,3 +55,26 @@ class UIHelper:
 
     def go_home(self):
         self.d.press("home")
+
+    def dismiss_china_settings_popup(self) -> bool:
+        """Looks for the China SKU 'User Notice' popup (Simplified Chinese '确定') and clicks it."""
+        logging.info("Checking for China SKU 'User Notice' (确定) popup...")
+        # Use textMatches for flexibility or direct text
+        btn = self.d(text="确定")
+        if btn.exists(timeout=3):
+            logging.info("Found China SKU popup, clicking '确定'...")
+            btn.click()
+            time.sleep(1)
+            return True
+        logging.info("No China SKU popup detected.")
+        return False
+
+    def ensure_settings_ready(self):
+        """Forces settings to open and dismisses any initialization popups (China SKU specific)."""
+        logging.info("Ensuring Settings app is ready and popups are dismissed...")
+        self.launch_app("com.android.settings")
+        time.sleep(2)
+        self.dismiss_china_settings_popup()
+        # Return to home to keep environment clean
+        self.go_home()
+        time.sleep(1)

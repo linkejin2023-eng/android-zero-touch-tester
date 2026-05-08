@@ -15,7 +15,7 @@ from framework.tests import (
 
 from framework.flash_manager import FlashManager
 
-VERSION = "2.1.0"
+VERSION = "2.1.9"
 
 def main():
     # Initialize logging first to ensure visibility
@@ -366,6 +366,14 @@ def main():
         
     reporter.add_result("System", "ADB & UIAutomator Connection", True, "Successfully connected to device and injected test agents.")
     
+    # [New] China SKU Initial Popup Dismissal (For ADB-already-on devices)
+    if args.sku == "china":
+        logging.info("China SKU detected. Pre-emptively clearing Settings popups via UI...")
+        try:
+            ui.ensure_settings_ready()
+        except Exception as e:
+            logging.warning(f"Failed to clear China SKU popups: {e}")
+    
     # Ensure screen is on and won't sleep during tests
     from framework.adb_helper import keep_screen_on, get_stay_on_state, set_stay_on_state
     
@@ -493,64 +501,72 @@ def main():
                         logging.info(f"Dynamically recovered target serial for reset: {target_sn}")
             
             driver = aoa_driver.AOADriver(serial=target_sn)
-            if driver.find_device(serial=target_sn):
-                if driver.switch_to_accessory_mode():
-                    driver.register_hid(1, aoa_driver.KB_REPORT_DESC)
-                    driver.register_hid(2, aoa_driver.CONSUMER_REPORT_DESC)
-                    bypass = oobe_bypass_script.OOBEBypass(driver)
-                    bypass.reset_device_to_factory_settings()
-                    
-                    # --- CRITICAL: Wait for device to actually disconnect and reboot ---
-                    # Without this, run_oobe_bypass may instantly detect the 'stale' session
-                    # of the device before it actually kills the OS and restarts.
-                    logging.info("Waiting 20s for device to initiate factory reset and disconnect USB...")
-                    time.sleep(20)
-                    
-                    logging.info("Attempting OOBE Bypass & ADB Enablement after reset...")
-                    if run_oobe_bypass(sku=args.sku, serial=target_sn, timeout=config.get('oobe_bypass_timeout', 600)):
-                        logging.info("Bypass successful. Waiting for ADB...")
-                        if wait_for_device(timeout=60):
-                            # Final Provisioning (Wait for system ready to ensure commands stick)
-                            logging.info("Wait for system stabilization (sys.boot_completed) after reset...")
-                            boot_ready = False
-                            for _ in range(30):
-                                _, boot_val = run_adb_cmd("getprop sys.boot_completed")
-                                if boot_val.strip() == "1":
-                                    boot_ready = True
-                                    break
-                                time.sleep(2)
-                                
-                            if boot_ready:
-                                run_adb_cmd("settings put global device_provisioned 1")
-                                run_adb_cmd("settings put secure user_setup_complete 1")
-                                if args.sku == "china":
-                                    # 實測證明 China SKU 需停用此包名才能跳出 OOBE
-                                    run_adb_cmd("pm disable com.pega.eulacn")
-                                    run_adb_cmd("pm disable com.android.provision")
-                                run_adb_cmd("am start -c android.intent.category.HOME -a android.intent.action.MAIN")
-                                time.sleep(3)
-                            else:
-                                logging.warning("System not fully booted after reset, bypass might be incomplete.")
-                            
-                            # Final Metric Verification (Closure)
-                            final_uptime, final_files = test_lifecycle.get_metrics()
-                            
-                            # Logic: Reset is successful if files are cleared (data wipe confirmed via marker deletion)
-                            # Uptime is logged for reference but not used for PASS/FAIL due to short-test variability.
-                            if final_files < baseline_files:
-                                reset_success = True
-                                status_msg = f"Full-cycle reset verified (Data Wiped). Files: {baseline_files} -> {final_files}, Uptime Ref: {final_uptime:.4f}h"
-                            else:
-                                reset_success = False
-                                reset_error = f"Data not wiped. Files remained at {final_files}. Reset failed."
-                        else:
-                            reset_error = "ADB not authorized after reset"
-                    else:
-                        reset_error = "OOBE Bypass failed or timed out"
-                else:
-                    reset_error = "Failed to switch to Accessory Mode"
+            
+            # --- [New] ADB Fast Reset Strategy ---
+            from framework.adb_helper import trigger_recovery_wipe
+            adb_reset_success = False
+            
+            if trigger_recovery_wipe():
+                logging.info("ADB Fast Reset initiated successfully.")
+                adb_reset_success = True
             else:
-                reset_error = "HID Device not found"
+                logging.warning("ADB Fast Reset failed or not supported. Falling back to HID sequence...")
+                if driver.find_device(serial=target_sn):
+                    if driver.switch_to_accessory_mode():
+                        driver.register_hid(1, aoa_driver.KB_REPORT_DESC)
+                        driver.register_hid(2, aoa_driver.CONSUMER_REPORT_DESC)
+                        bypass = oobe_bypass_script.OOBEBypass(driver)
+                        bypass.reset_device_to_factory_settings()
+                    else:
+                        reset_error = "Failed to switch to Accessory Mode for HID fallback"
+                else:
+                    reset_error = "HID Device not found for fallback"
+
+            if adb_reset_success or not reset_error:
+                # --- CRITICAL: Wait for device to actually disconnect and reboot ---
+                logging.info("Waiting 20s for device to initiate factory reset and disconnect USB...")
+                time.sleep(20)
+                
+                logging.info("Attempting OOBE Bypass & ADB Enablement after reset...")
+                if run_oobe_bypass(sku=args.sku, serial=target_sn, timeout=config.get('oobe_bypass_timeout', 600)):
+                    logging.info("Bypass successful. Waiting for ADB...")
+                    if wait_for_device(timeout=60):
+                        # Final Provisioning (Wait for system ready to ensure commands stick)
+                        logging.info("Wait for system stabilization (sys.boot_completed) after reset...")
+                        boot_ready = False
+                        for _ in range(30):
+                            _, boot_val = run_adb_cmd("getprop sys.boot_completed")
+                            if boot_val.strip() == "1":
+                                boot_ready = True
+                                break
+                            time.sleep(2)
+                            
+                        if boot_ready:
+                            run_adb_cmd("settings put global device_provisioned 1")
+                            run_adb_cmd("settings put secure user_setup_complete 1")
+                            if args.sku == "china":
+                                # 實測證明 China SKU 需停用此包名才能跳出 OOBE
+                                run_adb_cmd("pm disable com.pega.eulacn")
+                                run_adb_cmd("pm disable com.android.provision")
+                            run_adb_cmd("am start -c android.intent.category.HOME -a android.intent.action.MAIN")
+                            time.sleep(3)
+                        else:
+                            logging.warning("System not fully booted after reset, bypass might be incomplete.")
+                        
+                        # Final Metric Verification (Closure)
+                        final_uptime, final_files = test_lifecycle.get_metrics()
+                        
+                        # Logic: Reset is successful if files are cleared (data wipe confirmed via marker deletion)
+                        if final_files < baseline_files:
+                            reset_success = True
+                            status_msg = f"Full-cycle reset verified (Data Wiped). Files: {baseline_files} -> {final_files}, Uptime Ref: {final_uptime:.4f}h"
+                        else:
+                            reset_success = False
+                            reset_error = f"Data not wiped. Files remained at {final_files}. Reset failed."
+                    else:
+                        reset_error = "ADB not authorized after reset"
+                else:
+                    reset_error = "OOBE Bypass failed or timed out"
         except Exception as e:
             reset_error = str(e)
             

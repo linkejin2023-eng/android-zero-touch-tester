@@ -35,6 +35,9 @@
 - [x] [Sensors] 優化傳感器喚醒機制：改用 SensorBox u2 文字偵測點擊觸發，支援跨解析度捲動。
 - [x] [Sensors] 精簡重複項目: 已移除 e-Compass，保留 Magnetometer 作為磁性硬體校準基準。
 - [x] [OOBE] China SKU OOBE 繞過優化: 已整合 `com.pega.eulacn` 自動偵測與停用邏輯。
+- [x] **#24 China SKU 彈窗與重置性能優化 (二次開發計畫)**: **(2026-05-08 已完成)**
+    - [x] **Settings 智慧彈窗排除**: 實作 `UIHelper.ensure_settings_ready()`，針對 China SKU 自動點擊「确定」。
+    - [x] **ADB 指令極速重置**: 實作 `trigger_recovery_wipe()`，優先使用 `cmd recovery wipe` 並具備 HID Fallback 機制。
 - [ ] **#15 壓力測試模組 (Stress Test Module)**: 擴充 Reboot / Suspend 壓力循環腳本。
 * [/] **#23 統一主控器 (Unified Orchestrator)**: **(開發中)** 整合 Bash 入口至 `orchestrator.py`。
 
