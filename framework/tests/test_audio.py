@@ -18,30 +18,39 @@ def run_tests(ui: UIHelper, reporter: HTMLReportGenerator, specs=None, selectors
     ui_common = selectors.get("common", {})
     recorder_specs = selectors.get("recorder", {})
     
-    if check_service_running("audio"):
-        reporter.add_result("Audio", "Audio Service Check", True, "AudioService is running")
+    if "Audio Service Check" not in excluded:
+        if check_service_running("audio"):
+            reporter.add_result("Audio", "Audio Service Check", True, "AudioService is running")
+        else:
+            reporter.add_result("Audio", "Audio Service Check", False, "AudioService not found")
     else:
-        reporter.add_result("Audio", "Audio Service Check", False, "AudioService not found")
+        reporter.add_result("Audio", "Audio Service Check", True, "Skipped by profile", status_override="SKIP")
         
-    try:
-        run_adb_cmd(f"media volume --stream {audio_stream} --set 5")
-        time.sleep(1)
-        code, out = run_adb_cmd(f'dumpsys audio | grep -i "\\- STREAM_MUSIC" -A 5')
-        if "5" in out and code == 0:
-            reporter.add_result("Audio", "Media Volume Control", True, "Successfully set and read media volume via dumpsys")
-        else:
-            reporter.add_result("Audio", "Media Volume Control", False, f"Failed to verify media volume")
-    except Exception as e:
-        reporter.add_result("Audio", "Media Volume Control", False, str(e))
+    if "Media Volume Control" not in excluded:
+        try:
+            run_adb_cmd(f"media volume --stream {audio_stream} --set 5")
+            time.sleep(1)
+            code, out = run_adb_cmd(f'dumpsys audio | grep -i "\\- STREAM_MUSIC" -A 5')
+            if "5" in out and code == 0:
+                reporter.add_result("Audio", "Media Volume Control", True, "Successfully set and read media volume via dumpsys")
+            else:
+                reporter.add_result("Audio", "Media Volume Control", False, f"Failed to verify media volume")
+        except Exception as e:
+            reporter.add_result("Audio", "Media Volume Control", False, str(e))
+    else:
+        reporter.add_result("Audio", "Media Volume Control", True, "Skipped by profile", status_override="SKIP")
         
-    try:
-        _, out = run_adb_cmd("dumpsys media.audio_flinger")
-        if "Hardware HAL" in out or "primary" in out.lower():
-            reporter.add_result("Audio", "Audio HAL Initialization", True, "Audio HAL is loaded")
-        else:
-            reporter.add_result("Audio", "Audio HAL Initialization", False, "Could not verify Audio HAL")
-    except Exception as e:
-        reporter.add_result("Audio", "Audio HAL Initialization", False, str(e))
+    if "Audio HAL Initialization" not in excluded:
+        try:
+            _, out = run_adb_cmd("dumpsys media.audio_flinger")
+            if "Hardware HAL" in out or "primary" in out.lower():
+                reporter.add_result("Audio", "Audio HAL Initialization", True, "Audio HAL is loaded")
+            else:
+                reporter.add_result("Audio", "Audio HAL Initialization", False, "Could not verify Audio HAL")
+        except Exception as e:
+            reporter.add_result("Audio", "Audio HAL Initialization", False, str(e))
+    else:
+        reporter.add_result("Audio", "Audio HAL Initialization", True, "Skipped by profile", status_override="SKIP")
 
     # 4. Microphone Recording Test
     if "Microphone Recording" not in excluded:

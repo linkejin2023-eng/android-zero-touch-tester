@@ -97,6 +97,25 @@ python3 main.py --flash /path/to/fastboot.zip --sku china
 python3 main.py --oobe-only --sku china
 ```
 
+#### 情境 D: 壓力測試 (Stress Test)
+`stress_test.py` 是一個強大的封裝腳本，可以將所有參數（完全支援 `--sku china` 等）原封不動透傳給 `main.py`，並具備溫度監控與錯誤自動收集功能。
+
+**專屬參數：**
+* `-i`, `--iterations`: 執行迴圈次數 (預設 10)
+* `--stop-on-fail`: 遇到第一次失敗就立刻中止測試，保護機台的「第一案發現場」不被後續動作破壞。
+* `--no-bugreport`: 若不想讓 `bugreport` 佔用過多硬碟空間，可以使用此參數（出錯時僅收集 `logcat`）。
+
+```bash
+# 範例 1：GMS 純測試 (執行 10 次，失敗即停)
+./stress_test.py -i 10 --stop-on-fail --only-tests --sku gms
+
+# 範例 2：China SKU 完整全自動測試 (執行 20 次，包含燒錄與 OOBE 盲打，不收 bugreport 省空間)
+./stress_test.py -i 20 --no-bugreport --flash /path/to/fastboot.zip --sku china
+
+# 範例 3：多機台併發壓力測試 (指定 Serial 鎖定單台機器)
+./stress_test.py -i 50 --stop-on-fail --only-tests --sku gms --serial 099e000000000000
+```
+
 ### 3. 多機台併發支援 (--serial)
 在多機台環境下，可透過序號鎖定特定裝置，Stage 0.5 會自動過濾 USB 總線：
 ```bash

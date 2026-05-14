@@ -1,6 +1,21 @@
 # Changelog
 所有關於 Android Sanity Test 自動化框架的顯著變更將記載於此。
 
+## [2.1.11] - 2026-05-14
+### Added
+- **壓力測試模組 (Stress Test Wrapper)**: 
+  - 實作 `stress_test.py` 作為 `main.py` 的封裝腳本，支援自定義迴圈次數與完整參數透傳。
+  - 新增失敗自動捕捉機制：當 `main.py` 返回錯誤碼時，自動收集 `logcat` 與 `bugreport` 到獨立的時間戳資料夾。
+  - 支援 `--stop-on-fail` (Fail-Fast) 與 `--no-bugreport` 以保護測試現場與磁碟空間。
+  - 整合 `dumpsys battery` 動態監測機台溫度，輔助排查過熱降頻問題。
+
+## [2.1.10] - 2026-05-11
+### Fixed
+- **Skipped 測試卡控修正**: 
+  - 修正了 `exclude_items` (如 "WWAN Data Transfer") 在各個測試模組中未被確實跳過的問題。
+  - 全面補齊 `test_connectivity.py`, `test_audio.py`, `test_nfc.py`, `test_gps.py`, `test_camera.py` 缺失的 `not in excluded` 檢查點。
+  - 修正 `test_firmware.py` 無法接收與套用 `excluded` 參數的架構問題，確保 `build_info.json` 中動態載入的驗證項目（如 "Touch IC Firmware"）也能精準被跳過。
+
 ## [2.1.9] - 2026-05-08
 ### Added
 - **ADB 極速重置 (Fast Reset)**: 

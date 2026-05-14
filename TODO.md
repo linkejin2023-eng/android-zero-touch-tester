@@ -29,6 +29,7 @@
 ---
 
 ## 待擴展清單 (Next Deliverables)
+- [x] **#25 Skipped 測試卡控修正**: (2026-05-11 已完成) 補齊各測試模組缺失的 `exclude_items` 檢查點，修復 WWAN Data Transfer 與 Touch IC Firmware 無法被跳過的問題。
 - [x] [AOA] 實現多裝置平行測試的 USB 總線鎖定機制: (2026-05-06 已完成)
 - [x] **#24 Stage 0.5 Smart Polling Engine**: (2026-05-06 已完成) 實作 15s USB 起算計時與多 VID 精確偵測。
 - [x] [Sensors] 整合 SensorBox (imoblife.androidsensorbox) 自動化安裝與啟動: (2026-05-07 已完成, 已修復 ADB install 呼叫錯誤)
@@ -38,7 +39,7 @@
 - [x] **#24 China SKU 彈窗與重置性能優化 (二次開發計畫)**: **(2026-05-08 已完成)**
     - [x] **Settings 智慧彈窗排除**: 實作 `UIHelper.ensure_settings_ready()`，針對 China SKU 自動點擊「确定」。
     - [x] **ADB 指令極速重置**: 實作 `trigger_recovery_wipe()`，優先使用 `cmd recovery wipe` 並具備 HID Fallback 機制。
-- [ ] **#15 壓力測試模組 (Stress Test Module)**: 擴充 Reboot / Suspend 壓力循環腳本。
+- [x] **#15 壓力測試模組 (Stress Test Module)**: (2026-05-14 已完成) 實作 `stress_test.py` 封裝腳本，支援自動收集 fail logcat 與 bugreport。
 * [/] **#23 統一主控器 (Unified Orchestrator)**: **(開發中)** 整合 Bash 入口至 `orchestrator.py`。
 
 ---

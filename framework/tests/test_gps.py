@@ -29,11 +29,15 @@ def run_tests(ui, reporter, excluded=None):
         code, out = run_adb_cmd("dumpsys location")
         
         provider_ok = "gps" in out.lower()
-        if not provider_ok:
-            reporter.add_result("GPS", "GPS Provider", False, "GPS Provider not found in dumpsys location")
-            return
-            
-        reporter.add_result("GPS", "GPS Provider", True, "GPS Location Provider is successfully registered")
+        if "GPS Provider" not in excluded:
+            if not provider_ok:
+                reporter.add_result("GPS", "GPS Provider", False, "GPS Provider not found in dumpsys location")
+                return
+                
+            reporter.add_result("GPS", "GPS Provider", True, "GPS Location Provider is successfully registered")
+        else:
+            reporter.add_result("GPS", "GPS Provider", True, "Skipped by profile", status_override="SKIP")
+            if not provider_ok: return
         
         # 2. Hardware Signal Check (Weak Signal Tolerance)
         if "GPS Antenna Signal" not in excluded:

@@ -55,3 +55,7 @@ Thumbs.db
 backup_image/
 temp_extracted/
 *_tmp.json
+
+presentation/
+stress_reports/
+Android_Automation_Report.pptx

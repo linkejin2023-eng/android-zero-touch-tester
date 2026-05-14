@@ -126,28 +126,31 @@ def run_tests(ui: UIHelper, reporter: HTMLReportGenerator, ssid=None, password=N
             reporter.add_result("Connectivity", "WiFi AP Connection", True, "Skipped by profile", status_override="SKIP")
         
         # --- Robust WiFi Toggle Verification ---
-        logging.info("Verifying WiFi 'Disable' functionality...")
-        run_adb_cmd("svc wifi disable")
-        time.sleep(5)
-        _, wifi_on_off = run_adb_cmd("settings get global wifi_on")
-        _, iface_out = run_adb_cmd("ifconfig wlan0")
-        _, ds_wifi = run_adb_cmd("dumpsys wifi | grep 'Wi-Fi is'")
-        
-        # LOGIC: Pass if settings are 0 AND no IP is assigned AND dumpsys confirms disabled.
-        # We ignore the 'UP' flag because it lingers on this specific hardware.
-        is_software_off = wifi_on_off.strip() == "0"
-        no_ip = "inet addr:" not in iface_out
-        is_ds_disabled = "disabled" in ds_wifi.lower()
-        
-        if is_software_off and no_ip and is_ds_disabled:
-            reporter.add_result("Connectivity", "WiFi Disable Toggle", True, "Verified: WiFi service disabled (Settings=0, No IP, Dumpsys=disabled)")
+        if "WiFi Disable Toggle" not in excluded:
+            logging.info("Verifying WiFi 'Disable' functionality...")
+            run_adb_cmd("svc wifi disable")
+            time.sleep(5)
+            _, wifi_on_off = run_adb_cmd("settings get global wifi_on")
+            _, iface_out = run_adb_cmd("ifconfig wlan0")
+            _, ds_wifi = run_adb_cmd("dumpsys wifi | grep 'Wi-Fi is'")
+            
+            # LOGIC: Pass if settings are 0 AND no IP is assigned AND dumpsys confirms disabled.
+            # We ignore the 'UP' flag because it lingers on this specific hardware.
+            is_software_off = wifi_on_off.strip() == "0"
+            no_ip = "inet addr:" not in iface_out
+            is_ds_disabled = "disabled" in ds_wifi.lower()
+            
+            if is_software_off and no_ip and is_ds_disabled:
+                reporter.add_result("Connectivity", "WiFi Disable Toggle", True, "Verified: WiFi service disabled (Settings=0, No IP, Dumpsys=disabled)")
+            else:
+                msg = f"Failed: settings={wifi_on_off.strip()}, has_ip={not no_ip}, dumpsys='{ds_wifi.strip()}'"
+                reporter.add_result("Connectivity", "WiFi Disable Toggle", False, msg)
+            
+            # Restore WiFi for subsequent tests
+            run_adb_cmd("svc wifi enable")
+            time.sleep(3)
         else:
-            msg = f"Failed: settings={wifi_on_off.strip()}, has_ip={not no_ip}, dumpsys='{ds_wifi.strip()}'"
-            reporter.add_result("Connectivity", "WiFi Disable Toggle", False, msg)
-        
-        # Restore WiFi for subsequent tests
-        run_adb_cmd("svc wifi enable")
-        time.sleep(3)
+            reporter.add_result("Connectivity", "WiFi Disable Toggle", True, "Skipped by profile", status_override="SKIP")
             
     except Exception as e:
         reporter.add_result("Connectivity", "WiFi Tests", False, str(e))
@@ -166,49 +169,58 @@ def run_tests(ui: UIHelper, reporter: HTMLReportGenerator, ssid=None, password=N
             is_on = out_fix.strip() == "1"
 
         if is_on:
-            reporter.add_result("Connectivity", "Bluetooth Enable", True, "Bluetooth is ON (Manual or Automated)")
-            
-            logging.info("Starting Bluetooth Discovery test...")
-            run_adb_cmd("am start -a android.settings.BLUETOOTH_SETTINGS")
-            time.sleep(5) 
-            
-            found_devices = []
-            elements = ui.d(className="android.widget.TextView")
-            skip_texts = ["Bluetooth", "Connected devices", "Pair new device", "Device name", 
-                          "Received files", "Pairing helps", "On", "Off", "Available devices", "Searching...", "Bluetooth is on"]
-            
-            for el in elements:
-                try:
-                    txt = el.get_text()
-                    if txt and txt not in skip_texts and len(txt) > 2:
-                        found_devices.append(txt)
-                except:
-                    pass
-            
-            if found_devices:
-                reporter.add_result("Connectivity", "Bluetooth Scanning", True, f"Found {len(found_devices)} nearby devices: {', '.join(found_devices[:3])}")
+            if "Bluetooth Enable" not in excluded:
+                reporter.add_result("Connectivity", "Bluetooth Enable", True, "Bluetooth is ON (Manual or Automated)")
             else:
-                _, bt_sys = run_adb_cmd("dumpsys bluetooth_manager")
-                if "discovered" in bt_sys.lower() or "device" in bt_sys.lower():
-                     reporter.add_result("Connectivity", "Bluetooth Scanning", True, "Detected discovery activity via dumpsys")
+                reporter.add_result("Connectivity", "Bluetooth Enable", True, "Skipped by profile", status_override="SKIP")
+            
+            if "Bluetooth Scanning" not in excluded:
+                logging.info("Starting Bluetooth Discovery test...")
+                run_adb_cmd("am start -a android.settings.BLUETOOTH_SETTINGS")
+                time.sleep(5) 
+                
+                found_devices = []
+                elements = ui.d(className="android.widget.TextView")
+                skip_texts = ["Bluetooth", "Connected devices", "Pair new device", "Device name", 
+                              "Received files", "Pairing helps", "On", "Off", "Available devices", "Searching...", "Bluetooth is on"]
+                
+                for el in elements:
+                    try:
+                        txt = el.get_text()
+                        if txt and txt not in skip_texts and len(txt) > 2:
+                            found_devices.append(txt)
+                    except:
+                        pass
+                
+                if found_devices:
+                    reporter.add_result("Connectivity", "Bluetooth Scanning", True, f"Found {len(found_devices)} nearby devices: {', '.join(found_devices[:3])}")
                 else:
-                     reporter.add_result("Connectivity", "Bluetooth Scanning", False, "No nearby Bluetooth devices found (UI/Dumpsys)")
+                    _, bt_sys = run_adb_cmd("dumpsys bluetooth_manager")
+                    if "discovered" in bt_sys.lower() or "device" in bt_sys.lower():
+                         reporter.add_result("Connectivity", "Bluetooth Scanning", True, "Detected discovery activity via dumpsys")
+                    else:
+                         reporter.add_result("Connectivity", "Bluetooth Scanning", False, "No nearby Bluetooth devices found (UI/Dumpsys)")
+            else:
+                reporter.add_result("Connectivity", "Bluetooth Scanning", True, "Skipped by profile", status_override="SKIP")
             
             # --- Robust BT Toggle Verification ---
-            logging.info("Verifying Bluetooth 'Disable' functionality...")
-            run_adb_cmd("svc bluetooth disable")
-            time.sleep(5)
-            _, bt_on_off = run_adb_cmd("settings get global bluetooth_on")
-            if bt_on_off.strip() == "0":
-                 reporter.add_result("Connectivity", "Bluetooth Disable Toggle", True, "Verified: Bluetooth service state is OFF (0)")
+            if "Bluetooth Disable Toggle" not in excluded:
+                logging.info("Verifying Bluetooth 'Disable' functionality...")
+                run_adb_cmd("svc bluetooth disable")
+                time.sleep(5)
+                _, bt_on_off = run_adb_cmd("settings get global bluetooth_on")
+                if bt_on_off.strip() == "0":
+                     reporter.add_result("Connectivity", "Bluetooth Disable Toggle", True, "Verified: Bluetooth service state is OFF (0)")
+                else:
+                     reporter.add_result("Connectivity", "Bluetooth Disable Toggle", False, f"Failed: Current settings bluetooth_on={bt_on_off.strip()}")
+                
+                # Restore BT
+                run_adb_cmd("svc bluetooth enable")
+                time.sleep(3)
+                
+                run_adb_cmd("input keyevent 3")
             else:
-                 reporter.add_result("Connectivity", "Bluetooth Disable Toggle", False, f"Failed: Current settings bluetooth_on={bt_on_off.strip()}")
-            
-            # Restore BT
-            run_adb_cmd("svc bluetooth enable")
-            time.sleep(3)
-            
-            run_adb_cmd("input keyevent 3")
+                reporter.add_result("Connectivity", "Bluetooth Disable Toggle", True, "Skipped by profile", status_override="SKIP")
         else:
             reporter.add_result("Connectivity", "Bluetooth Enable", False, "Bluetooth failed to enable via svc")
             
@@ -216,74 +228,77 @@ def run_tests(ui: UIHelper, reporter: HTMLReportGenerator, ssid=None, password=N
         reporter.add_result("Connectivity", "Bluetooth Tests", False, str(e))
         
     # WWAN (Cellular) Functional Tests
-    try:
-        logging.info("--- WWAN Functional Connectivity Test ---")
-        
-        # 1. Save original WiFi state
-        _, wifi_state_out = run_adb_cmd("svc wifi show")
-        original_wifi_on = "enabled" in wifi_state_out.lower()
-        
-        # 2. Disable WiFi & Enable Data
-        logging.info("Disabling WiFi to isolate WWAN...")
-        run_adb_cmd("svc wifi disable")
-        run_adb_cmd("svc data enable")
-        
-        # High-precision wait for route activation
-        mobile_ready = False
-        target_ifaces = hw_wwan_ifaces
-        active_iface = None
-        ip = None
-        
-        for i in range(30): # Max 30s
-            time.sleep(1)
-            # 1. Check which interface has an IP
-            _, out_ip = run_adb_cmd(f"ip -f inet addr show | grep -E '{'|'.join(target_ifaces)}'")
-            if "inet " in out_ip:
-                ip = out_ip.split("inet ")[1].split("/")[0]
-                for iface in target_ifaces:
-                    if iface in out_ip:
-                        active_iface = iface
-                        break
+    if "WWAN Data Transfer" not in excluded:
+        try:
+            logging.info("--- WWAN Functional Connectivity Test ---")
             
-            # 2. Check for route to internet (8.8.8.8)
-            _, route_get = run_adb_cmd("ip route get 8.8.8.8")
-            if active_iface and active_iface in route_get:
-                logging.info(f"Traffic route confirmed via {active_iface}: {route_get.strip()}")
-                mobile_ready = True
-                break
+            # 1. Save original WiFi state
+            _, wifi_state_out = run_adb_cmd("svc wifi show")
+            original_wifi_on = "enabled" in wifi_state_out.lower()
             
-            if i % 5 == 0:
-                logging.info(f"Waiting for mobile route ({i+1}/30s)... Current IP: {ip}")
-        
-        if ip:
-             logging.info(f"Mobile Data IP detected: {ip} on {active_iface or 'unknown'}")
-             
-             # 3. Perform Ping & HTTP check
-             logging.info("Verifying data route (Ping 8.8.8.8)...")
-             code_ping, _ = run_adb_cmd("ping -c 1 -W 5 8.8.8.8")
-             
-             logging.info("Verifying HTTP/DNS (YouTube headers)...")
-             # Use --interface to force traffic through mobile data if possible
-             curl_cmd = "curl -Is --connect-timeout 8 https://www.youtube.com"
-             if active_iface:
-                 curl_cmd += f" --interface {active_iface}"
-             
-             code_curl, out_curl = run_adb_cmd(f"{curl_cmd} | head -n 1")
-             
-             if code_ping == 0 or "HTTP/" in out_curl or "200" in out_curl:
-                 reporter.add_result("Connectivity", "WWAN Data Transfer", True, f"Verified: Connectivity successful via {active_iface} (IP: {ip})")
-             else:
-                 msg = f"Failed: Ping code={code_ping}, curl='{out_curl.strip()}'"
-                 reporter.add_result("Connectivity", "WWAN Data Transfer", False, msg)
-        else:
-             reporter.add_result("Connectivity", "WWAN Data Transfer", False, "Failed: No IP address detected on mobile interfaces after 30s.")
-
-        # 4. Restore WiFi
-        if original_wifi_on:
-            logging.info("Restoring WiFi state...")
+            # 2. Disable WiFi & Enable Data
+            logging.info("Disabling WiFi to isolate WWAN...")
+            run_adb_cmd("svc wifi disable")
+            run_adb_cmd("svc data enable")
+            
+            # High-precision wait for route activation
+            mobile_ready = False
+            target_ifaces = hw_wwan_ifaces
+            active_iface = None
+            ip = None
+            
+            for i in range(30): # Max 30s
+                time.sleep(1)
+                # 1. Check which interface has an IP
+                _, out_ip = run_adb_cmd(f"ip -f inet addr show | grep -E '{'|'.join(target_ifaces)}'")
+                if "inet " in out_ip:
+                    ip = out_ip.split("inet ")[1].split("/")[0]
+                    for iface in target_ifaces:
+                        if iface in out_ip:
+                            active_iface = iface
+                            break
+                
+                # 2. Check for route to internet (8.8.8.8)
+                _, route_get = run_adb_cmd("ip route get 8.8.8.8")
+                if active_iface and active_iface in route_get:
+                    logging.info(f"Traffic route confirmed via {active_iface}: {route_get.strip()}")
+                    mobile_ready = True
+                    break
+                
+                if i % 5 == 0:
+                    logging.info(f"Waiting for mobile route ({i+1}/30s)... Current IP: {ip}")
+            
+            if ip:
+                 logging.info(f"Mobile Data IP detected: {ip} on {active_iface or 'unknown'}")
+                 
+                 # 3. Perform Ping & HTTP check
+                 logging.info("Verifying data route (Ping 8.8.8.8)...")
+                 code_ping, _ = run_adb_cmd("ping -c 1 -W 5 8.8.8.8")
+                 
+                 logging.info("Verifying HTTP/DNS (YouTube headers)...")
+                 # Use --interface to force traffic through mobile data if possible
+                 curl_cmd = "curl -Is --connect-timeout 8 https://www.youtube.com"
+                 if active_iface:
+                     curl_cmd += f" --interface {active_iface}"
+                 
+                 code_curl, out_curl = run_adb_cmd(f"{curl_cmd} | head -n 1")
+                 
+                 if code_ping == 0 or "HTTP/" in out_curl or "200" in out_curl:
+                     reporter.add_result("Connectivity", "WWAN Data Transfer", True, f"Verified: Connectivity successful via {active_iface} (IP: {ip})")
+                 else:
+                     msg = f"Failed: Ping code={code_ping}, curl='{out_curl.strip()}'"
+                     reporter.add_result("Connectivity", "WWAN Data Transfer", False, msg)
+            else:
+                 reporter.add_result("Connectivity", "WWAN Data Transfer", False, "Failed: No IP address detected on mobile interfaces after 30s.")
+    
+            # 4. Restore WiFi
+            if original_wifi_on:
+                logging.info("Restoring WiFi state...")
+                run_adb_cmd("svc wifi enable")
+                time.sleep(3)
+    
+        except Exception as e:
+            reporter.add_result("Connectivity", "WWAN Functional Test", False, str(e))
             run_adb_cmd("svc wifi enable")
-            time.sleep(3)
-
-    except Exception as e:
-        reporter.add_result("Connectivity", "WWAN Functional Test", False, str(e))
-        run_adb_cmd("svc wifi enable")
+    else:
+        reporter.add_result("Connectivity", "WWAN Data Transfer", True, "Skipped by profile", status_override="SKIP")

@@ -12,31 +12,34 @@ def run_tests(ui, reporter, excluded=None):
     
     # 1. NFC Service Power Cycle
     # Clearing logcat and cycling service to force a fresh tag discovery event
-    try:
-        logging.info("Cycling NFC power & clearing logs for fresh detection...")
-        run_adb_cmd("svc nfc disable")
-        time.sleep(2)
-        run_adb_cmd("logcat -c") # Clear buffer to avoid stale detection
-        run_adb_cmd("svc nfc enable")
-        
-        # Verify if service is actually UP before polling
-        is_ready = False
-        for _ in range(5):
-            _, out_dump = run_adb_cmd("dumpsys nfc | grep 'mState='")
-            if "on" in out_dump.lower() or "3" in out_dump:
-                is_ready = True
-                break
-            time.sleep(1)
-        
-        if is_ready:
-            reporter.add_result("NFC", "NFC Power Cycle", True, "NFC service enabled and polling started")
-        else:
-            reporter.add_result("NFC", "NFC Power Cycle", False, "NFC failed to reach 'ON' state")
-            return # Abort if service is dead
+    if "NFC Power Cycle" not in excluded:
+        try:
+            logging.info("Cycling NFC power & clearing logs for fresh detection...")
+            run_adb_cmd("svc nfc disable")
+            time.sleep(2)
+            run_adb_cmd("logcat -c") # Clear buffer to avoid stale detection
+            run_adb_cmd("svc nfc enable")
             
-    except Exception as e:
-        reporter.add_result("NFC", "NFC Power Cycle", False, str(e))
-        return
+            # Verify if service is actually UP before polling
+            is_ready = False
+            for _ in range(5):
+                _, out_dump = run_adb_cmd("dumpsys nfc | grep 'mState='")
+                if "on" in out_dump.lower() or "3" in out_dump:
+                    is_ready = True
+                    break
+                time.sleep(1)
+            
+            if is_ready:
+                reporter.add_result("NFC", "NFC Power Cycle", True, "NFC service enabled and polling started")
+            else:
+                reporter.add_result("NFC", "NFC Power Cycle", False, "NFC failed to reach 'ON' state")
+                return # Abort if service is dead
+                
+        except Exception as e:
+            reporter.add_result("NFC", "NFC Power Cycle", False, str(e))
+            return
+    else:
+        reporter.add_result("NFC", "NFC Power Cycle", True, "Skipped by profile", status_override="SKIP")
 
     # 2. Physical Tag Read Verification (Polling Loop)
     if "Tag Read Verification" not in excluded:

@@ -3,12 +3,13 @@ import time
 from framework.adb_helper import run_adb_cmd
 from framework.ui_automator import UIHelper
 
-def run_tests(ui: UIHelper, reporter, validations=None):
+def run_tests(ui: UIHelper, reporter, validations=None, excluded=None):
     """
     Runs multi-module firmware verification with comparison against JSON expectations.
     """
     logging.info("Running Multi-Module Firmware Verification (Data-Driven)...")
     validations = validations or []
+    if not excluded: excluded = []
     
     if not validations:
         logging.warning("No firmware validations provided in configuration.")
@@ -17,6 +18,11 @@ def run_tests(ui: UIHelper, reporter, validations=None):
     for val_item in validations:
         category = val_item.get("category", "Firmware")
         name = val_item.get("name", "Unknown Component")
+        
+        if name in excluded:
+            reporter.add_result(category, name, True, "Skipped by profile", status_override="SKIP")
+            continue
+            
         expected = str(val_item.get("expected", ""))
         mode = val_item.get("mode", "exact")
         extractors = val_item.get("extractors", [])

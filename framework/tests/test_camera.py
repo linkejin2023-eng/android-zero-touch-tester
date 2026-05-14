@@ -22,11 +22,14 @@ def run_tests(ui: UIHelper, reporter: HTMLReportGenerator, specs=None, selectors
     camera_specs = selectors.get("camera", {})
 
     # Check Camera Service
-    code, out = run_adb_cmd("dumpsys media.camera")
-    if "Camera 0" in out or "device@3" in out.lower():
-        reporter.add_result("Camera", "Camera HAL Initialization", True, "Camera HAL exposes at least one camera device")
+    if "Camera HAL Initialization" not in excluded:
+        code, out = run_adb_cmd("dumpsys media.camera")
+        if "Camera 0" in out or "device@3" in out.lower():
+            reporter.add_result("Camera", "Camera HAL Initialization", True, "Camera HAL exposes at least one camera device")
+        else:
+            reporter.add_result("Camera", "Camera HAL Initialization", False, "No camera devices found")
     else:
-        reporter.add_result("Camera", "Camera HAL Initialization", False, "No camera devices found")
+        reporter.add_result("Camera", "Camera HAL Initialization", True, "Skipped by profile", status_override="SKIP")
     
     def bypass_camera_dialogs():
         allow_btns = ui_common.get("allow_texts", ["Allow", "WHILE USING THE APP", "允許", "使用時允許"])

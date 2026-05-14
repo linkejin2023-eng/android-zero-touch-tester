@@ -15,7 +15,7 @@ from framework.tests import (
 
 from framework.flash_manager import FlashManager
 
-VERSION = "2.1.9"
+VERSION = "2.1.11"
 
 def main():
     # Initialize logging first to ensure visibility
@@ -438,7 +438,7 @@ def main():
             test_reboot.run_tests(ui, reporter, timeout=config.get("reboot_timeout", 120))
         
         if should_run("firmware"):
-            test_firmware.run_tests(ui, reporter, validations=fw_validations)
+            test_firmware.run_tests(ui, reporter, validations=fw_validations, excluded=exclude_list)
         
         # Phase 1
         if should_run("audio"):
