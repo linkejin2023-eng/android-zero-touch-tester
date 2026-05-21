@@ -4,13 +4,13 @@ modules:
   reboot: false
   firmware: true
   audio: false
-  camera: false
+  camera: true
   connectivity: false
-  sensors: true
+  sensors: false
   power: false
   nfc: false
-  gps: true
-  auto_factory_reset: true
+  gps: false
+  auto_factory_reset: false
 
 exclude_items:
   - "WiFi AP Connection"

@@ -15,6 +15,7 @@ class FlashManager:
         self.serial = serial
         self.fastboot_bin = f"fastboot -s {serial}" if serial else "fastboot"
         self.no_wipe = no_wipe
+        self.custom_env = None  # Dynamically configured environment to prioritize local fastboot
         logging.info(f"FlashManager initialized with ZIP: {self.zip_path} (Serial: {self.serial}, No-Wipe: {self.no_wipe})")
 
     def extract_firmware(self) -> bool:
@@ -29,10 +30,11 @@ class FlashManager:
             logging.error(f"Failed to extract ZIP: {e}")
             return False
 
-    def _run_local_cmd(self, cmd: str, cwd: str = "") -> Tuple[int, str]:
+    def _run_local_cmd(self, cmd: str, cwd: str = "", env: dict = None) -> Tuple[int, str]:
         """Runs a local shell command and returns (exit_code, output_combined)"""
         try:
             logging.debug(f"Running: {cmd} (cwd='{cwd}')")
+            run_env = env if env is not None else (self.custom_env if self.custom_env is not None else None)
             # Python 3.6 compatibility: no capture_output or text
             result = subprocess.run(
                 cmd,
@@ -40,7 +42,8 @@ class FlashManager:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 universal_newlines=True,
-                cwd=cwd if cwd else None
+                cwd=cwd if cwd else None,
+                env=run_env
             )
             combined_output = (result.stdout + "\n" + result.stderr).strip()
             return result.returncode, combined_output
@@ -111,6 +114,10 @@ class FlashManager:
             logging.info(f"Found local fastboot binary at: {local_fb}. Prioritizing it.")
             self._run_local_cmd(f"chmod +x {local_fb}")
             self.fastboot_bin = f"{local_fb} -s {self.serial}" if self.serial else local_fb
+            
+            # Construct a custom env inheriting system vars but prioritizing decompressed folder in PATH
+            self.custom_env = os.environ.copy()
+            self.custom_env["PATH"] = f"{bash_dir}:{self.custom_env.get('PATH', '')}"
 
         # 2. Check Connection
         logging.info("Checking if device is connected (ADB or Fastboot)...")
@@ -170,9 +177,15 @@ class FlashManager:
             # 3. Inject Serial into fastboot commands within the script
             if self.serial:
                 logging.info(f"Injecting serial {self.serial} into fastboot commands in the script.")
-                # Replace 'fastboot ' with 'fastboot -s <serial> '
-                # Use a regex-like approach or simple string replacement if safe
-                if 'fastboot ' in content and f'-s {self.serial}' not in content:
+                # Handle special variable definitions like fastboot_tool="..."
+                if 'fastboot_tool="./fastboot"' in content:
+                    content = content.replace('fastboot_tool="./fastboot"', f'fastboot_tool="./fastboot -s {self.serial}"')
+                    modified = True
+                elif 'fastboot_tool="fastboot"' in content:
+                    content = content.replace('fastboot_tool="fastboot"', f'fastboot_tool="fastboot -s {self.serial}"')
+                    modified = True
+                # Universal fallback: Replace 'fastboot ' with 'fastboot -s <serial> '
+                elif 'fastboot ' in content and f'-s {self.serial}' not in content:
                     content = content.replace('fastboot ', f'fastboot -s {self.serial} ')
                     modified = True
             

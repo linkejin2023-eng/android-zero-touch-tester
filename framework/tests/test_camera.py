@@ -32,22 +32,34 @@ def run_tests(ui: UIHelper, reporter: HTMLReportGenerator, specs=None, selectors
         reporter.add_result("Camera", "Camera HAL Initialization", True, "Skipped by profile", status_override="SKIP")
     
     def bypass_camera_dialogs():
-        allow_btns = ui_common.get("allow_texts", ["Allow", "WHILE USING THE APP", "允許", "使用時允許"])
-        confirm_btns = ui_common.get("confirm_texts", ["OK", "Next", "AGREE", "確定", "下一步", "同意"])
+        # Proactively tap the bottom-right region (approx 78% width, 70% height) to dismiss tutorial overlay
+        _, size_out = run_adb_cmd("wm size")
+        if "Physical size" in size_out:
+            dims = [int(s) for s in size_out.split(":")[-1].strip().split("x")]
+            w, h = max(dims), min(dims)
+            tx, ty = int(w * 0.78), int(h * 0.7)
+            logging.info(f"Proactively tapping tutorial overlay OK button at ({tx}, {ty}) for {w}x{h}")
+            run_adb_cmd(f"input tap {tx} {ty}")
+            time.sleep(1.5)
+
+        allow_btns = ui_common.get("allow_texts", ["Allow", "WHILE USING THE APP", "允許", "使用時允許", "使用时允许", "仅限一次", "仅限这一次"])
+        confirm_btns = ui_common.get("confirm_texts", ["OK", "Next", "AGREE", "確定", "下一步", "同意", "允许"])
         combined = list(set(allow_btns + confirm_btns))
+        pattern = "|".join(f"^{btn}$" for btn in combined)
         
-        for _ in range(6):
-            found = False
-            for btn_text in combined:
-                try:
-                    btn = ui.d(textMatches=f"(?i){btn_text}")
-                    if btn.exists(timeout=2):
-                        logging.info(f"Clicking camera popup: {btn_text}")
-                        btn.click(timeout=3)
-                        time.sleep(1)
-                        found = True
-                except: pass
-            if not found: break
+        for _ in range(3):
+            try:
+                btn = ui.d(textMatches=f"(?i)({pattern})")
+                if btn.exists(timeout=0.5):
+                    btn_text = btn.info.get('text', 'unknown')
+                    logging.info(f"Clicking camera popup: {btn_text}")
+                    btn.click(timeout=1)
+                    time.sleep(1)
+                else:
+                    break
+            except Exception as e:
+                logging.warning(f"Error in bypass_camera_dialogs: {e}")
+                break
 
     def get_newest_file(directory, video_only=False):
         ext_filter = "grep -Ei '.mp4|.3gp|.mkv'" if video_only else "cat"
@@ -80,20 +92,40 @@ def run_tests(ui: UIHelper, reporter: HTMLReportGenerator, specs=None, selectors
             time.sleep(2)
         return None
 
-    def get_all_videos(directory):
-        _, out = run_adb_cmd(f"ls {directory} | grep -Ei '.mp4|.3gp'")
+    def get_all_media(directory, pattern):
+        _, out = run_adb_cmd(f"ls {directory} | grep -Ei '{pattern}'")
         return set(f.strip() for f in out.split('\n') if f.strip())
 
-    # Coordinate fallback for Snapcam shutter (Dynamic based on screen size)
-    def trigger_shutter():
-        # Step 1: Hardware Keyevents (Primary Strategy - UI Independent)
-        logging.info("Triggering shutter via Keyevents (27, 66)...")
-        run_adb_cmd("input keyevent 27") # KEYCODE_CAMERA
-        time.sleep(1)
-        run_adb_cmd("input keyevent 66") # KEYCODE_ENTER
-        time.sleep(1)
+    # Proportional coordinate calculation for shutter based on screen size (landscape 93% width, 50% height)
+    def trigger_shutter(is_video=False):
+        force_ui = camera_specs.get("force_ui_shutter", False)
+        
+        # Helper to do dynamic coordinate tap (proportional calculation)
+        def do_coordinate_tap():
+            _, size_out = run_adb_cmd("wm size")
+            if "Physical size" in size_out:
+                dims = [int(s) for s in size_out.split(":")[-1].strip().split("x")]
+                w, h = max(dims), min(dims) 
+                # Shutter button centers around 93% of the horizontal screen length in landscape mode
+                x, y = int(w * 0.93), h // 2
+                logging.info(f"Triggering shutter via proportional coordinate fallback: ({x}, {y}) for {w}x{h}")
+                run_adb_cmd(f"input tap {x} {y}")
+                return True
+            return False
 
-        # Step 2: UI Automator Click (Fallback Strategy)
+        if not force_ui and not is_video:
+            # Step 1: Hardware Keyevents (Primary Strategy for Photo - UI Independent)
+            logging.info("Triggering shutter via Keyevents (27)...")
+            run_adb_cmd("input keyevent 27") # KEYCODE_CAMERA
+            time.sleep(1)
+            return True
+
+        if is_video:
+            # For video recording, standard UI Automator clicks can be slow or blocked.
+            # Directly use low-level coordinate tap for maximum speed and to bypass touch blocks.
+            return do_coordinate_tap()
+
+        # Step 2: UI Automator Click (Fallback Strategy for Photo)
         shutter_ids = [
             camera_specs.get("shutter_id"),
             "org.codeaurora.snapcam:id/shutter_button",
@@ -110,17 +142,8 @@ def run_tests(ui: UIHelper, reporter: HTMLReportGenerator, specs=None, selectors
                     return True
             except: pass
             
-        # Step 3: Coordinate Fallback (Calculated)
-        _, size_out = run_adb_cmd("wm size")
-        if "Physical size" in size_out:
-            # ... existing coordinate tap logic ...
-            dims = [int(s) for s in size_out.split(":")[-1].strip().split("x")]
-            w, h = max(dims), min(dims) 
-            x, y = w - 150, h // 2
-            logging.info(f"Triggering shutter via coordinate fallback: ({x}, {y})")
-            run_adb_cmd(f"input tap {x} {y}")
-            return True
-        return False
+        # Step 3: Coordinate Fallback (Calculated for Photo)
+        return do_coordinate_tap()
 
     # Clean start for Photo
     run_adb_cmd(f"am force-stop {target_pkg}")
@@ -133,25 +156,20 @@ def run_tests(ui: UIHelper, reporter: HTMLReportGenerator, specs=None, selectors
         time.sleep(5)
         bypass_camera_dialogs()
         
-        # Capture count before
-        _, out_before = run_adb_cmd(f"ls {target_dir} | wc -l")
-        count_before = int(out_before.strip()) if out_before.strip().isdigit() else 0
+        # Capture media list before
+        photos_before = get_all_media(target_dir, '.jpg|.png|.jpeg')
         
         # Use native camera hardware key event for maximum robustness (Task D Optimization)
         logging.info("Triggering photo capture...")
         trigger_shutter()
         time.sleep(8) # Wait for storage sync
         
-        # Verification A: Count check
-        _, out_after = run_adb_cmd(f"ls {target_dir} | wc -l")
-        count_after = int(out_after.strip()) if out_after.strip().isdigit() else 0
+        # Capture media list after
+        photos_after = get_all_media(target_dir, '.jpg|.png|.jpeg')
+        new_photos = list(photos_after - photos_before)
         
-        # Verification B: Get newest file (LS -t)
-        _, find_out = run_adb_cmd(f"ls -t {target_dir} | head -n 1")
-        file_after = find_out.strip()
-        
-        if count_after > count_before or (file_after and "IMG_" in file_after):
-            reporter.add_result("Camera", "Photo Capture", True, f"Verified: New photo created: {file_after} (Count: {count_before} -> {count_after})")
+        if new_photos:
+            reporter.add_result("Camera", "Photo Capture", True, f"Verified: New photo created: {new_photos[0]} (Count: {len(photos_before)} -> {len(photos_after)})")
         else:
             reporter.add_result("Camera", "Photo Capture", False, "Failed to capture photo (Storage sync failed or shutter ignored)", status_override="ERROR")
     else:
@@ -160,88 +178,85 @@ def run_tests(ui: UIHelper, reporter: HTMLReportGenerator, specs=None, selectors
     # --- 2. Video Recording Test ---
     if "Video Recording" not in excluded:
         logging.info("Starting Video Recording test...")
+        # Get videos before recording (CRITICAL: query before camera launch/force-stop to correctly include auto-record files!)
+        videos_before = get_all_media(target_dir, '.mp4|.3gp')
+
+        # Force stop the camera before starting Video test to avoid stream/buffer lock (Scheme B)
+        run_adb_cmd(f"am force-stop {target_pkg}")
+        time.sleep(1)
         run_adb_cmd("am start -a android.media.action.VIDEO_CAMERA")
-        time.sleep(8)
+        time.sleep(6) # Give plenty of time for fresh launch
         bypass_camera_dialogs()
 
-        # Switch mode if text visible
-        for m in ["Video", "錄錄影", "錄像", "錄製", "録画"]:
+        # Switch mode if text visible (Use ADB tap instead of UI click for reliability)
+        mode_switched = False
+        for m in ["Video", "錄錄影", "錄像", "錄製", "録画", "视频"]:
             try:
                 btn = ui.d(textMatches=f"(?i).*{m}.*")
                 if btn.exists(timeout=2):
-                    btn.click(timeout=3)
+                    bounds = btn.info['bounds']
+                    cx = (bounds['left'] + bounds['right']) // 2
+                    cy = (bounds['top'] + bounds['bottom']) // 2
+                    logging.info(f"Switching to Video mode via tap at ({cx}, {cy}) for '{m}'")
+                    run_adb_cmd(f"input tap {cx} {cy}")
                     time.sleep(3)
+                    mode_switched = True
                     break
-            except: pass
+            except Exception as e:
+                logging.warning(f"Mode switch tap failed: {e}")
+                
+        # Fallback: If UI text switch failed (e.g. unknown language), use T70 landscape proportional coordinates (w * 0.35, h * 0.84)
+        if not mode_switched:
+            try:
+                w, h = ui.d.window_size()
+                cx = int(w * 0.35)
+                cy = int(h * 0.84)
+                logging.info(f"UI mode text not matched (possibly unsupported language). Using proportional coordinate fallback tap at ({cx}, {cy}) for {w}x{h}")
+                run_adb_cmd(f"input tap {cx} {cy}")
+                time.sleep(3)
+            except Exception as e:
+                logging.warning(f"Proportional mode switch fallback failed: {e}")
                 
         # Capture precise device time BEFORE shutter click
         _, start_time_raw = run_adb_cmd("\"date '+%m-%d %H:%M:%S.000'\"")
         start_time = start_time_raw.strip()
         
         logging.info(f"Recording video (15s)... START via multi-shutter at device time {start_time}")
-        trigger_shutter()
+        trigger_shutter(is_video=True)
         time.sleep(15) 
         
         logging.info("Stopping recording...")
-        trigger_shutter()
+        trigger_shutter(is_video=True)
+        time.sleep(3) # Give camera 3s to gracefully stop recording thread
         
-        # Simple, bulletproof wait for muxing/renaming
-        logging.info("Waiting 15s for file finalization...")
-        time.sleep(15)
+        # Force stop the camera app to trigger Snapcam's file finalization and renaming immediately
+        logging.info("Stopping camera app to force file finalization and renaming...")
+        run_adb_cmd(f"am force-stop {target_pkg}")
+        time.sleep(2)
         
-        import re
+        # Get videos after recording
+        videos_after = get_all_media(target_dir, '.mp4|.3gp')
+        new_videos = list(videos_after - videos_before)
+        
+        # Select the largest video file among new videos to filter out 0-byte temp/spurious files
         final_file = None
-
-        # Step A: Logcat Isolation (Primary Authority)
-        if start_time:
-            log_cmd = f"logcat -d -v time -T '{start_time}'"
-            _, filtered_logs = run_adb_cmd(log_cmd)
-            
-            # Matches: ExtendedUtils: printFileName fd(14) -> /storage/emulated/0/DCIM/Camera/VID_20260321_051610.mp4
-            match = re.search(r"printFileName fd.*->\s+.*?Camera/(VID_.*?\.mp4)", filtered_logs)
-            if not match:
-                # Fallback to MediaProvider log
-                match = re.search(r"MediaProvider: Open with lower FS for.*?Camera/(VID_.*?\.mp4)", filtered_logs)
-                
-            if match:
-                final_file = match.group(1).strip()
-                logging.info(f"Logcat parsing found filename: {final_file}")
-
-        # Step B: File System Fallback (If Logcat failed or returned invalid path)
-        if not final_file:
-            logging.warning("Logcat extraction failed. Using time-based File System search...")
-            # Get all videos sorted by modification time (newest first)
-            _, out = run_adb_cmd(f"ls -t {target_dir} | grep -Ei '.mp4|.3gp'")
-            potential_files = [f.strip() for f in out.split('\n') if f.strip()]
-            
-            # Check Top 5 newest files
-            for f in potential_files[:5]:
-                path = os.path.join(target_dir, f)
-                _, size_out = run_adb_cmd(f"stat -c %s {path}")
-                size = int(size_out.strip()) if size_out.strip().isdigit() else 0
-                if size > video_min_size: # Guaranteed video size from config
-                    final_file = f
-                    logging.info(f"File System search found valid file: {final_file} ({size} bytes)")
-                    break
+        max_size = -1
+        for f in new_videos:
+            f_path = os.path.join(target_dir, f)
+            _, size_out = run_adb_cmd(f"stat -c %s '{f_path}'")
+            f_size = int(size_out.strip()) if size_out.strip().isdigit() else 0
+            if f_size > max_size:
+                max_size = f_size
+                final_file = f
 
         # Final Result Reporting
         if final_file:
-            path = os.path.join(target_dir, final_file)
-            _, size_out = run_adb_cmd(f"stat -c %s {path}")
-            size = int(size_out.strip()) if size_out.strip().isdigit() else 0
-            if size > video_min_size:
-                reporter.add_result("Camera", "Video Recording", True, f"Verified: Video saved as {final_file} ({size} bytes)")
-                ui.go_home()
+            if max_size > video_min_size:
+                reporter.add_result("Camera", "Video Recording", True, f"Verified: Video saved as {final_file} ({max_size} bytes)")
             else:
-                 reporter.add_result("Camera", "Video Recording", False, f"Video file found but too small ({size} bytes)")
-        elif start_time:
-            _, filtered_logs = run_adb_cmd(f"logcat -d -v time -T '{start_time}'")
-            if "start" in filtered_logs.lower() or "stop" in filtered_logs.lower() or "camera" in filtered_logs.lower():
-                reporter.add_result("Camera", "Video Recording", True, "Verified: MediaRecorder activity detected in Logcat window (Path verification failed)")
-            else:
-                reporter.add_result("Camera", "Video Recording", False, f"Failed: No valid video path found since {start_time}")
+                 reporter.add_result("Camera", "Video Recording", False, f"Video file found but too small ({max_size} bytes)")
         else:
-            reporter.add_result("Camera", "Video Recording", False, "Failed: Device time capture failed")
+            reporter.add_result("Camera", "Video Recording", False, "Failed: No new video file found via Set Difference")
     else:
         reporter.add_result("Camera", "Video Recording", True, "Skipped by profile", status_override="SKIP")
 

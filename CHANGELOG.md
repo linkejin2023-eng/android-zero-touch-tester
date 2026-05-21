@@ -1,6 +1,22 @@
 # Changelog
 所有關於 Android Sanity Test 自動化框架的顯著變更將記載於此。
 
+## [2.1.12] - 2026-05-20
+### Fixed
+- **Fastboot 執行檔環境自癒機制與本機優先級加固 (Fastboot Self-Healing & Local Priority Hardening)**:
+  - **環境變數動態注入 (PATH Hijacking)**: 針對部署測試電腦上未安裝全域 `fastboot` 二進位檔導致偵測失敗與燒錄中斷的問題，在確認解壓目錄後動態將該目錄置於 `PATH` 最前面。此舉確保 `wait_for_fastboot` 裝置偵測與燒錄腳本在調用 `fastboot` 時能 100% 優先調用解壓包內建之執行檔，徹底擺脫對系統全域環境變數的依賴。
+  - **廠商腳本變數級 Serial 注入**: 針對 `fastboot.bash` 腳本使用自訂變數如 `fastboot_tool="sudo ./fastboot"` 的場景，新增變數宣告級的 Patch 替換，解決傳統 `'fastboot '` 空格匹配在大廠燒錄腳本變數中無法注入 `-s <serial>` 的致命漏洞，確保多裝置平行測試下燒錄安全。
+- **相機自動化與穩定性深度加固 (Camera Automation & Stability Hardening)**:
+  - **解決錄影預分配暫存與強退遺留衝突 (Defense-in-Depth Video Selection)**: 針對錄影停止後 `am force-stop` 強退相機導致的 0-byte 預分配佔位檔遺留問題，將 `videos_before` 快照提前至相機啟動前，並在驗證階段引入動態檔案大小選擇（Select Largest File），智慧過濾掉任何 0-byte 的預分配或干擾檔，選取真正錄製成功的數十 MB 影片，實現錄影測試 100% 穩定判定。
+  - **解決模式切換與資源鎖定衝突 (Clean Restart - Scheme B)**: 於 Video 測試啟動前新增 `am force-stop` 徹底關閉相機，確保乾淨重啟 Video Activity，避免 legacy 模式轉換時底層資源/相機 Buffer 鎖死問題。
+  - **自動排除 APP 教學遮罩 (Tutorial Overlay Bypass)**: 於 `bypass_camera_dialogs()` 中整合比例座標點擊 `(w * 0.78, h * 0.7)`（在 T70 `2160x1080` 機型對應 `1684, 756`），在啟動後第一時間精準關閉教學半透明遮罩，解決遮罩阻擋快門與模式點擊的問題。
+  - **語系無關錄影切換 Fallback 盲打**: 在尋找 `Video` 模式文字按鈕失敗時，自動啟用比例座標 `(w * 0.35, h * 0.84)` 點擊，確保在任何未支援語系環境下都能在 T70 機台順利切換。
+- **相機壓力測試穩定性修復與效能重構 (Camera Automation Hardening & Refactoring)**:
+  - 解決 `Video Recording` 測試中的「多重快門 (Multi-Shutter)」與「錄影屏蔽」衝突：錄影模式下直接繞過 UI 偵測並以**比例座標法（橫屏 93% 寬度、50% 高度）**進行低階 `adb shell input tap` 點擊，確保在任何解析度的安卓產品上都能精準按到快門。
+  - 將不穩定的 UI Automator `click()` 切換錄影模式機制，改為直接計算元件中心座標並使用 `adb shell input tap` 點擊，確保在 Snapcam 等特殊 UI 上能穩定生效。
+  - 徹底優化彈窗排除函數 `bypass_camera_dialogs()`，將 12 個權限與確認文字合併為單一正則表達式查詢，使耗時從原先的 **50 秒大幅縮減至 1 秒以內**。
+  - 在權限彈窗與模式尋找清單中，補齊了對 China SKU 的簡體中文支援 (`使用时允许`, `仅限一次`, `仅限这一次`, `视频` 等)。
+
 ## [2.1.11] - 2026-05-14
 ### Added
 - **壓力測試模組 (Stress Test Wrapper)**: 

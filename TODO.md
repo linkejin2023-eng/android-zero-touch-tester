@@ -1,7 +1,7 @@
 # 專案當前狀態 (Project Status)
 
 ## 最後更新
-2026-04-28 15:18
+2026-05-20 15:25
 
 ## 專案進度概覽 (Overall Progress)
 - **核心框架 (Core Framework)**: 100% (完結)
@@ -40,6 +40,8 @@
     - [x] **Settings 智慧彈窗排除**: 實作 `UIHelper.ensure_settings_ready()`，針對 China SKU 自動點擊「确定」。
     - [x] **ADB 指令極速重置**: 實作 `trigger_recovery_wipe()`，優先使用 `cmd recovery wipe` 並具備 HID Fallback 機制。
 - [x] **#15 壓力測試模組 (Stress Test Module)**: (2026-05-14 已完成) 實作 `stress_test.py` 封裝腳本，支援自動收集 fail logcat 與 bugreport。
+- [x] **#16 相機壓力測試與相容性硬化 (Camera Automation Hardening)**: (2026-05-20 已完成) 解決錄影測試的多重快門衝突、導入無語系依賴的 ADB Tap 模式切換、將 videos_before 提前至相機啟動前以相容 Auto-Record 機制、引入最大檔案尺寸篩選器 (Largest File Selector) 智慧過濾暫存檔、實作 Scheme B 乾淨重啟避免 0-byte 檔案鎖死，並比例座標排除 APP 教學半透明遮罩。
+- [x] **#26 Fastboot 執行檔環境自癒機制 (Fastboot Self-Healing)**: (2026-05-20 已完成) 實作 `PATH` 環境變數動態注入機制，自動將解壓目錄下的 `fastboot` 置於首位，解除測試電腦對系統全域 fastboot 環境變數的依賴，並支援廠商 `fastboot_tool` 變數級 Serial 注入。
 * [/] **#23 統一主控器 (Unified Orchestrator)**: **(開發中)** 整合 Bash 入口至 `orchestrator.py`。
 
 ---
