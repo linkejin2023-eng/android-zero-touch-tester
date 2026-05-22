@@ -174,12 +174,14 @@ class HTMLReportGenerator:
                 else:
                     failed_cases.append(case_info)
 
+        serial_no = self.summary["device_info"].get("Serial", "Unknown")
         summary_data = {
             "status": status,
             "version": version,
             "variant": variant,
             "timestamp": self.timestamp,
             "model": self.summary["device_info"].get("Model", "Unknown"),
+            "serial": serial_no,
             "stats": {
                 "total": self.summary["total"],
                 "passed": self.summary["passed"],
@@ -191,11 +193,34 @@ class HTMLReportGenerator:
             "failed_cases": failed_cases
         }
         
-        filename = f"test_summary.json" # Always fixed name in workspace for easy grep
-        with open(filename, "w", encoding="utf-8") as f:
-            json.dump(summary_data, f, indent=4)
-        logging.info(f"Summary JSON exported: {filename}")
-        return filename
+        # 1. Output isolated test_summary.json inside designated report output directory
+        filename_ws = os.path.join(self.output_dir, "test_summary.json")
+        try:
+            with open(filename_ws, "w", encoding="utf-8") as f:
+                json.dump(summary_data, f, indent=4)
+            logging.info(f"Isolated workspace summary JSON exported: {filename_ws}")
+        except Exception as e:
+            logging.warning(f"Failed to export workspace summary JSON to {filename_ws}: {e}")
+            
+        # 2. Output general test_summary.json to project root for backward compatibility
+        filename_root = "test_summary.json"
+        try:
+            with open(filename_root, "w", encoding="utf-8") as f:
+                json.dump(summary_data, f, indent=4)
+        except Exception as e:
+            logging.warning(f"Failed to export fallback root summary JSON: {e}")
+
+        # 3. Output SN-tagged test_summary_{SN}.json to project root for multi-device indexing
+        safe_serial = str(serial_no).replace(" ", "_")
+        filename_sn = f"test_summary_{safe_serial}.json"
+        try:
+            with open(filename_sn, "w", encoding="utf-8") as f:
+                json.dump(summary_data, f, indent=4)
+            logging.info(f"SN-tagged summary JSON exported: {filename_sn}")
+        except Exception as e:
+            logging.warning(f"Failed to export SN-tagged summary JSON to {filename_sn}: {e}")
+
+        return filename_ws
 
     def finalize(self, duration_secs: float, version: str = "Unknown", variant: str = "user") -> str:
         self.summary["duration"] = f"{duration_secs:.2f}s"

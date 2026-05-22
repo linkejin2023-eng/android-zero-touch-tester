@@ -113,11 +113,19 @@ trigger_remote_test () {
 
     # 異步執行測試，並在結束後立刻發信
     (
+        # 1. Proactively delete old root summary file before triggering test to avoid stale results
+        ssh $REMOTE_TEST_USER@$TEST_SERVER "rm -f $REMOTE_TEST_DIR/test_summary.json"
+        
         ssh $REMOTE_TEST_USER@$TEST_SERVER "cd $REMOTE_TEST_DIR && ./.venv/bin/python3 trigger_job.py --build $built_date --type $variant --source daily $extra_flags --remote-path $remote_path"
         local exit_code=$?
         
-        # 抓取測試摘要 JSON
-        local summary_json=$(ssh $REMOTE_TEST_USER@$TEST_SERVER "cat $REMOTE_TEST_DIR/test_summary.json")
+        # 2. Cat the root summary (with backward compatibility)
+        local summary_json=$(ssh $REMOTE_TEST_USER@$TEST_SERVER "cat $REMOTE_TEST_DIR/test_summary.json 2>/dev/null")
+        
+        # 3. If empty, test crashed or was blocked. Fallback to INFRA_ERROR instead of letting it fail silently
+        if [ -z "$summary_json" ]; then
+            summary_json="{\"status\": \"INFRA_ERROR\", \"stats\": {\"pass_rate\": \"0.0%\"}, \"failed_cases\": [{\"category\": \"Infrastructure\", \"test_name\": \"Execution Crashed\", \"message\": \"test_summary.json was not generated. Please check remote console.log.\"}]}"
+        fi
         
         send_smoke_test_report "$variant" "$built_date" "$exit_code" "$summary_json"
     ) &

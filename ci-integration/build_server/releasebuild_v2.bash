@@ -66,7 +66,8 @@ trigger_remote_test () {
         extra_flags="--check-only"
     fi
 
-    (ssh $REMOTE_TEST_USER@$TEST_SERVER "cd $REMOTE_TEST_DIR && ./.venv/bin/python3 trigger_job.py --build $VERSION --type $variant --source release $extra_flags --remote-path $remote_path" || echo "[V2-WARN] Remote trigger for $variant failed, but continuing build pipeline...") &
+    # Proactively delete old root summary file on remote server before triggering
+    (ssh $REMOTE_TEST_USER@$TEST_SERVER "rm -f $REMOTE_TEST_DIR/test_summary.json; cd $REMOTE_TEST_DIR && ./.venv/bin/python3 trigger_job.py --build $VERSION --type $variant --source release $extra_flags --remote-path $remote_path" || echo "[V2-WARN] Remote trigger for $variant failed, but continuing build pipeline...") &
 }
 
 # =================================================================

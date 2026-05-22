@@ -1,6 +1,12 @@
 # Changelog
 所有關於 Android Sanity Test 自動化框架的顯著變更將記載於此。
 
+## [2.1.13] - 2026-05-22
+### Fixed
+- **多裝置測試隔離與郵件通知防呆 (Parallel Test Isolation & Notification Safeguard)**:
+  - **測試摘要隔離產出與 SN 智慧檔名**: 調整 `export_summary_json` 邏輯，將主要 `test_summary.json` 輸出至指定的隔離報表目錄中，徹底解決多個平行測試任務互相覆寫的問題。同時，於專案根目錄下產出帶有設備 Serial 序號的 `test_summary_{SN}.json` 與預設 `test_summary.json` 方便快速索引與舊版本兼容，並於 JSON 資料結構中新增 `"serial"` 欄位以利 CI 流程明確識別設備。
+  - **清空歷史殘留與 INFRA 異常捕獲**: 更新 `dailybuild_v2.bash`, `china_dailybuild_v2.bash`, `china_releasebuild_v2.bash` 與 `releasebuild_v2.bash` 四大 CI 腳本的 `trigger_remote_test` 函數。在觸發前強制清空根目錄殘留的 `test_summary.json`，並在抓取時若為空則自動 fallback 至手動構造的 `INFRA_ERROR` JSON，徹底阻斷由於遠端執行閃退而誤讀歷史測試結果並寄出錯誤報告信件的重大邏輯漏洞。
+
 ## [2.1.12] - 2026-05-20
 ### Fixed
 - **Fastboot 執行檔環境自癒機制與本機優先級加固 (Fastboot Self-Healing & Local Priority Hardening)**:
