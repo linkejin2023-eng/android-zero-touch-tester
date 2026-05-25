@@ -1,6 +1,12 @@
 # Changelog
 所有關於 Android Sanity Test 自動化框架的顯著變更將記載於此。
 
+## [2.1.14] - 2026-05-25
+### Fixed
+- **編譯腳本重複觸發與 Scheme A 通知整合 (Release Pipeline Run Duplication & Scheme A Notification Integration)**:
+  - **刪除重複觸發區塊**: 移除 `releasebuild_v2.bash` 尾部重複的 User 測試觸發程式碼區塊，解決第二次測試被重複發起並產生多份報告的 Bug。
+  - **引進 Release 郵件發送功能 (Scheme A)**: 於 `releasebuild_v2.bash` 引入並適配 `send_smoke_test_report` 發信通知函數，支援解析遠端 `test_summary.json` 並調用 `mutt` 向團隊發送含有專屬 Image 連結、測試數據與 Error Fallback 的通知信。
+
 ## [2.1.13] - 2026-05-22
 ### Fixed
 - **多裝置測試隔離與郵件通知防呆 (Parallel Test Isolation & Notification Safeguard)**:

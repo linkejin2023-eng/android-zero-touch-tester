@@ -1,7 +1,7 @@
 # 專案當前狀態 (Project Status)
 
 ## 最後更新
-2026-05-22 19:35
+2026-05-25 18:48
 
 ## 專案進度概覽 (Overall Progress)
 - **核心框架 (Core Framework)**: 100% (完結)
@@ -29,6 +29,7 @@
 ---
 
 ## 待擴展清單 (Next Deliverables)
+- [x] **#28 Release 管道重複執行修正與發信通知整合 (Release Pipeline Fix & Scheme A)**: (2026-05-25 已完成) 移除 `releasebuild_v2.bash` 重複 User 執行區塊，整合並移植 Scheme A 測試摘要 mutt 郵件發信通知功能。
 - [x] **#27 多裝置隔離與郵件通知防呆 (Parallel Isolation & Notification Safeguard)**: (2026-05-22 已完成) 實現 `test_summary.json` 指定目錄隔離輸出與 SN 智慧檔名，徹底封鎖舊 Summary 殘留發信漏洞。
 - [x] **#25 Skipped 測試卡控修正**: (2026-05-11 已完成) 補齊各測試模組缺失的 `exclude_items` 檢查點，修復 WWAN Data Transfer 與 Touch IC Firmware 無法被跳過的問題。
 - [x] [AOA] 實現多裝置平行測試的 USB 總線鎖定機制: (2026-05-06 已完成)
