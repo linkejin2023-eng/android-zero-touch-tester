@@ -1,6 +1,14 @@
 # Changelog
 所有關於 Android Sanity Test 自動化框架的顯著變更將記載於此。
 
+## [2.2.0] - 2026-05-27
+### Added
+- **統一自動化架構 (Unified CI/CD Orchestration)**:
+  - **設定檔驅動**: 引入 `ci_config.json` 徹底抽離伺服器 IP、帳號與建置路徑等環境參數。
+  - **全 SKU/Source 支援**: 讓 `orchestrator.py` 支援 `--sku` 與 `--source` 參數切換，動態調度 GMS/China 與 Daily/Release 建置流程。
+  - **版號合成機制**: SCM 指定 `--version` 時，動態與日期合成 Release 專屬 `BUILD_ID`。
+  - **單一編譯核心**: 新增 `unified_build_A15.bash` 完全取代過去零散的 Build 腳本，具備動態編譯參數 (`-gs`) 與 OTA Artifact 差異化收集能力。
+
 ## [2.1.14] - 2026-05-25
 ### Fixed
 - **編譯腳本重複觸發與 Scheme A 通知整合 (Release Pipeline Run Duplication & Scheme A Notification Integration)**:

@@ -1,0 +1,33 @@
+{
+  "build_servers": {
+    "china": {
+      "ip": "10.192.188.25",
+      "user": "server",
+      "script_path": "/home/server/bin/unified_build_A15.bash",
+      "codebase_paths": {
+        "daily": "/mnt/data_1/server/thorpe_A15_dailybuild",
+        "release": "/mnt/data_1/server/thorpe_A15_dailybuild"
+      }
+    },
+    "gms": {
+      "ip": "10.192.188.8",
+      "user": "server",
+      "script_path": "/home/server/bin/unified_build_A15.bash",
+      "codebase_paths": {
+        "daily": "/home/server/thorpe_dailybuild_A15",
+        "release": "/home/server/thorpe_dailybuild_A15"
+      }
+    }
+  },
+  "test_server": {
+    "ip": "10.192.220.17",
+    "user": "franck_lin",
+    "script_path": "/home/franck_lin/auto_test"
+  },
+  "image_server": {
+    "ip": "10.192.188.16",
+    "user": "nick_chuang",
+    "linux_base_path": "/media/share/thorpe/Android_15",
+    "win_base_path": "\\\\\\\\10.192.188.16\\\\share\\\\thorpe\\\\Android_15"
+  }
+}
