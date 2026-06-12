@@ -1,6 +1,10 @@
 # Changelog
 所有關於 Android Sanity Test 自動化框架的顯著變更將記載於此。
 
+## [2.2.1] - 2026-06-11
+### Fixed
+- **OOBE Bypass 變數作用域修正 (OOBE Bypass Scope Fix)**: 修復 `hid_gadget/oobe_bypass_script.py` 中 `adb_helper` 變數在賦值前被引用導致的 `UnboundLocalError` 問題，確保在 China SKU 且 Fastboot 逾時的情況下能正常執行 OOBE 繞過流程。
+
 ## [2.2.0] - 2026-05-27
 ### Added
 - **統一自動化架構 (Unified CI/CD Orchestration)**:

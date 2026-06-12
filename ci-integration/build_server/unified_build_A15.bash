@@ -34,6 +34,18 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOCAL_ARTIFACT_DIR="/home/server/bin/A15_artifact"
 
 # [MODIFIED] 實驗分支跳過同步，保留本地修改 (繼承舊邏輯)
+switch_branch () {
+    if [ "$BRANCH" == "thorpe_dev_test_260407" ]; then
+        return
+    fi
+    echo "[INFO] Switching sub-repositories to branch: $BRANCH"
+    cd ${WORKSPACE}; repo forall -c "git checkout $BRANCH"; cd -
+    
+    if [ "$SKU" == "china" ]; then
+        cd ${WORKSPACE}/QCM6490_apps_qssi15/LINUX/android; repo forall -c "git checkout $BRANCH"; cd -
+    fi
+}
+
 sync_code () {
     if [ "$BRANCH" == "thorpe_dev_test_260407" ]; then
         echo "[INFO] Experimental branch $BRANCH detected. Skipping sync_code..."
@@ -41,8 +53,12 @@ sync_code () {
     fi
     cd ${WORKSPACE}/.repo/manifests; git reset --hard; git clean -fd; git pull 2>&1 | tee pull.log; cd -
     cd ${WORKSPACE}; repo forall -c "pwd;git pull pandora $BRANCH:$BRANCH" 2>&1 | tee pull.log; cd -
-    cd ${WORKSPACE}/QCM6490_apps_qssi15/LINUX/android/.repo/manifests; git reset --hard; git clean -fd; git pull 2>&1 | tee pull.log; cd -
-    cd ${WORKSPACE}/QCM6490_apps_qssi15/LINUX/android; repo forall -c "pwd;git pull pandora ${BRANCH}:${BRANCH}" 2>&1 | tee pull.log; cd -
+    
+    if [ "$SKU" == "china" ]; then
+        echo "[INFO] China SKU detected. Syncing secondary QCM6490 manifest..."
+        cd ${WORKSPACE}/QCM6490_apps_qssi15/LINUX/android/.repo/manifests; git reset --hard; git clean -fd; git pull 2>&1 | tee pull.log; cd -
+        cd ${WORKSPACE}/QCM6490_apps_qssi15/LINUX/android; repo forall -c "pwd;git pull pandora ${BRANCH}:${BRANCH}" 2>&1 | tee pull.log; cd -
+    fi
 }
 
 chk_error () {
@@ -140,6 +156,7 @@ upload_image () {
 }
 
 # --- 執行主流程 ---
+switch_branch
 clean_code
 sync_code
 build_code

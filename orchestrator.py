@@ -113,7 +113,8 @@ def process_variant(branch, variant, build_id, sku, source, config, dry_run=Fals
         win_path = f"{img_conf['win_base_path']}\\dailybuild\\{zip_folder}"
 
     trigger_cmd = (
-        f"ssh {test_conf['user']}@{test_conf['ip']} 'cd {test_conf['script_path']} && "
+        f"ssh {test_conf['user']}@{test_conf['ip']} 'rm -f {test_conf['script_path']}/test_summary.json && "
+        f"cd {test_conf['script_path']} && "
         f"./.venv/bin/python3 trigger_job.py --build {build_id} --type {variant} --source {source} --remote-path {remote_image_path}'"
     )
     

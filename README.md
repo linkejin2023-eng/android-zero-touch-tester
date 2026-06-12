@@ -123,21 +123,36 @@ python3 main.py --serial <SN_ID> --oobe --sku gms
 ```
 
 
-## CI/CD 整合結構 (Integration Architecture)
+## CI/CD 整合結構 (Integration Architecture - Unified)
 
-本專案實作了 **Build Server -> Test Server** 的閉環自動化流程，腳本依據執行環境分類如下：
+本專案自 v2.2.0 起實作了**設定檔驅動 (Config-Driven)** 的單一主控架構，達成跨伺服器、全 SKU、全 Pipeline (Daily/Release) 的閉環自動化流程。
 
-### 1. Build Server 側 (`ci-integration/build_server/`)
-存放於該目錄下的腳本負責調度編譯流程與觸發遠端測試：
-- **`releasebuild_v2.bash`**: GMS Release 核心主控，負責修改版本號、觸發測試與發送精英級郵件。
-- **`dailybuild_v2.bash`**: GMS Daily 核心主控，具備動態日期回傳機制。
-- **`china_dailybuild_v2.bash`**: **[NEW]** China SKU Daily 主控，具備環境豁免與 NoGMS 通知特化。
-- **`china_releasebuild_v2.bash`**: **[NEW]** China SKU Release 主控，支援深度 UNC 目錄路徑 (release/) 轉義。
-- **`auto_release_*.bash`**: Release 版本編譯子腳本 (Worker)。
-- **`auto_daily_*.bash`**: Daily 版本編譯子腳本 (Worker)。
+### 1. 統一主控器 (Trigger Server 側)
+在專案根目錄下，透過 `orchestrator.py` 進行全局調度：
+- **`ci_config.json`**: 集中管理所有的伺服器 IP、登入帳號、本機 Workspace 以及 UNC 網域路徑。未來的路徑或伺服器變更皆只需修改此檔。
+- **`orchestrator.py`**: 作為大腦，讀取 JSON 後向 Build Server 下達編譯指令，完成後再向 Test Server 觸發測試，最終進行測試報告解析與發送。
+
+#### Orchestrator CLI 使用說明
+Orchestrator 支援強大的動態參數，`branch` 與 `variant` 為必要的位置參數：
+```bash
+# 格式：python3 orchestrator.py <branch> <variant> [其他選用參數]
+
+# 範例 1：GMS Daily (執行 userdebug + user)
+python3 orchestrator.py thorpe_dev all --source daily --sku gms
+
+# 範例 2：China Release (執行 user)，必須帶入 SCM 版號
+python3 orchestrator.py T70-A15-2.1.0-CN user --source release --sku china --version 02.02.01
+
+# 範例 3：不編譯，僅觸發遠端測試 (--only-test)
+python3 orchestrator.py thorpe_dev userdebug --only-test --source daily --sku gms
+```
+
+### 2. 統一編譯引擎 (Build Server 側)
+放置於遠端 Build Server 的 `ci-integration/build_server/` 目錄：
+- **`unified_build_A15.bash`**: 單一核心編譯腳本，完全取代過去零散的 `T70_*.bash`。它會接收來自 Orchestrator 的參數，自動判定是否需加入 `-gs` (GMS)，並在 Release 模式下自動備份 OTA 檔案並精準命名。
 
 > [!TIP]
-> **防呆機制**：上述腳本均已導入 `SCRIPT_DIR` 自動定位邏輯，支援從任何工作路徑執行（例如 `bash ci-integration/build_server/releasebuild_v2.bash`），會自動尋找鄰近模板並產出 Artifacts。
+> **防呆機制**：所有舊版的 `.bash` (如 `dailybuild_v2.bash` 等) 已被列為棄用 (Deprecated)，請全面改用 `orchestrator.py` 進行任務下達。
 
 ### 2. Test Server 側 (專案根目錄)
 負責接收指令並執行實際的硬體燒錄與功能驗證：

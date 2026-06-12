@@ -15,7 +15,7 @@ from framework.tests import (
 
 from framework.flash_manager import FlashManager
 
-VERSION = "2.2.0"
+VERSION = "2.2.1"
 
 def main():
     # Initialize logging first to ensure visibility

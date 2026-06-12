@@ -332,10 +332,10 @@ def run_oobe_bypass(sku="gms", serial=None, timeout=600):
     logging.info(f"Waiting for device to appear on USB (timeout={timeout}s, SKU={sku})...")
     start = time.time()
     driver = AOADriver()
+    from framework import adb_helper
     
     def is_adb_ready():
         try:
-            from framework import adb_helper
             res = adb_helper.run_local_adb(["devices"])
             # 使用函數參數中的 serial，若無則回退到全域
             check_sn = serial if serial else adb_helper.GLOBAL_SERIAL
@@ -350,7 +350,6 @@ def run_oobe_bypass(sku="gms", serial=None, timeout=600):
     while time.time() - start < timeout:
         if is_adb_ready():
             # 檢查是否真的進入桌面，而非只是 ADB 通了 (針對 China SKU OOBE 攔截問題)
-            from framework import adb_helper
             _, out = adb_helper.run_adb_cmd("dumpsys window | grep -E 'mCurrentFocus|mFocusedApp'")
             if "Launcher" in out or "TabActivity" in out:
                 logging.info("ADB detected & Launcher is active. Skipping HID.")
