@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import logging
 import time
+import json
 from datetime import datetime
 
 # 將專案根目錄加入路徑
@@ -61,6 +62,43 @@ def main():
     finally:
         lock.release()
 
+def _write_error_summary(status, error_reason, build_num, build_type, source, ws_dir=None):
+    """
+    在所有錯誤路徑寫入 test_summary.json，確保 orchestrator 能看到有意義的失敗原因。
+    """
+    summary = {
+        "status": status,
+        "stats": {"pass_rate": "N/A", "total": 0, "passed": 0, "failed": 0, "error": 0, "skipped": 0},
+        "failed_cases": [{
+            "category": error_reason.get("stage", "Unknown"),
+            "test_name": error_reason.get("message", "Unknown error"),
+            "error_detail": error_reason.get("detail", ""),
+            "hint": error_reason.get("hint", "")
+        }],
+        "build_info": {
+            "build_number": build_num,
+            "type": build_type,
+            "source": source
+        },
+        "timestamp": datetime.now().isoformat()
+    }
+
+    filename_root = "test_summary.json"
+    try:
+        with open(filename_root, "w", encoding="utf-8") as f:
+            json.dump(summary, f, indent=4, ensure_ascii=False)
+        logging.info(f"Error summary written to {filename_root}: [{status}] {error_reason.get('message', '')}")
+    except Exception as e:
+        logging.warning(f"Failed to write error summary: {e}")
+
+    if ws_dir and os.path.isdir(ws_dir):
+        try:
+            with open(os.path.join(ws_dir, "test_summary.json"), "w", encoding="utf-8") as f:
+                json.dump(summary, f, indent=4, ensure_ascii=False)
+        except Exception:
+            pass
+
+
 def run_job(args, config, db):
     raw_build = args.build
     build_type = args.type
@@ -80,6 +118,12 @@ def run_job(args, config, db):
         error_msg = f"Could not find source zip for {raw_build} in remote {source_type} folders."
         logging.error(error_msg)
         db.add_build(build_num, build_type, "N/A", "ERROR: Source Missing")
+        _write_error_summary("IMAGE_NOT_FOUND", {
+            "stage": "Image Retrieval",
+            "message": error_msg,
+            "detail": f"Build: {build_num}, Type: {build_type}, Source: {source_type}",
+            "hint": "Check if build image exists on the image server path, or if build-ID is correct."
+        }, build_num, build_type, source_type)
         return
 
     full_build_name = build_meta['full_build_name']
@@ -143,6 +187,12 @@ def run_job(args, config, db):
 
             if not success:
                 db.update_status(full_build_name, build_type, "ERROR: Image Transfer Failed")
+                _write_error_summary("IMAGE_TRANSFER_FAILED", {
+                    "stage": "Image Transfer",
+                    "message": f"rsync failed after {max_retries} retries for {source_zip}",
+                    "detail": f"Build: {full_build_name}, Source: {source_type}, Target: {local_zip}",
+                    "hint": "Check network connectivity to image server, and verify the image file exists and is accessible via rsync."
+                }, full_build_name, build_type, source_type, ws_dir)
                 return
 
             # 6. 同步 build_info.json (如果有)
@@ -213,6 +263,12 @@ def run_job(args, config, db):
         db.update_status(full_build_name, build_type, f"EXCEPTION: {str(e)}")
         with open(log_file, "a") as log_out:
             log_out.write(f"\n[CRITICAL EXCEPTION] {e}\n")
+        _write_error_summary("INFRA_ERROR", {
+            "stage": "Job Execution",
+            "message": f"Fatal exception: {str(e)}",
+            "detail": f"Exception type: {type(e).__name__}",
+            "hint": "Check console.log in the workspace for stack trace."
+        }, full_build_name, build_type, source_type, ws_dir)
 
     # 6. 智慧清理
     perform_cleanup(config, db)
