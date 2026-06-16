@@ -91,7 +91,7 @@ class OOBEBypass:
         if sku == "china":
             hybrid_seq.extend(["TAB", "TAB", "ENTER"])
             
-        adb_toggle_downs = ["DOWN"] * (6 if sku == "china" else 7)
+        adb_toggle_downs = (["DOWN"] * 12 + ["UP"]) if sku == "china" else ["DOWN"] * 7
         final_toggle_downs = ["DOWN"] * (12 if sku == "china" else 14)
         
         hybrid_seq.extend([

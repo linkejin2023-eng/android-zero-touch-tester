@@ -42,14 +42,15 @@ def run_tests(ui: UIHelper, reporter: HTMLReportGenerator, specs=None, selectors
             run_adb_cmd(f"input tap {tx} {ty}")
             time.sleep(1.5)
 
-        allow_btns = ui_common.get("allow_texts", ["Allow", "WHILE USING THE APP", "允許", "使用時允許", "使用时允许", "仅限一次", "仅限这一次"])
-        confirm_btns = ui_common.get("confirm_texts", ["OK", "Next", "AGREE", "確定", "下一步", "同意", "允许"])
+        allow_btns = ui_common.get("allow_texts", ["Allow", "WHILE USING THE APP", "允許", "使用時允許", "使用时允许", "仅限一次", "仅限这一次", "永远允许", "始终允许", "始终", "仅在使用该应用时允许", "仅本次使用时允许"])
+        confirm_btns = ui_common.get("confirm_texts", ["OK", "Next", "AGREE", "確定", "下一步", "同意", "允许", "同意并继续", "确认", "确定"])
         combined = list(set(allow_btns + confirm_btns))
-        pattern = "|".join(f"^{btn}$" for btn in combined)
+        pattern = "|".join(f".*{btn}.*" for btn in combined)
         
         for _ in range(3):
             try:
-                btn = ui.d(textMatches=f"(?i)({pattern})")
+                # Add clickable=True to prevent matching unclickable dialog titles (e.g. "Allow Camera to...")
+                btn = ui.d(textMatches=f"(?i)({pattern})", clickable=True)
                 if btn.exists(timeout=0.5):
                     btn_text = btn.info.get('text', 'unknown')
                     logging.info(f"Clicking camera popup: {btn_text}")
@@ -118,12 +119,10 @@ def run_tests(ui: UIHelper, reporter: HTMLReportGenerator, specs=None, selectors
             logging.info("Triggering shutter via Keyevents (27)...")
             run_adb_cmd("input keyevent 27") # KEYCODE_CAMERA
             time.sleep(1)
-            return True
+            # DO NOT return True here. Let it also try the UI click as a fallback,
+            # because on GMS SKU, KEYCODE_CAMERA is often ignored by Snapcam.
 
-        if is_video:
-            # For video recording, standard UI Automator clicks can be slow or blocked.
-            # Directly use low-level coordinate tap for maximum speed and to bypass touch blocks.
-            return do_coordinate_tap()
+        # Step 2: UI Automator Click (Primary for Video, Fallback for Photo)
 
         # Step 2: UI Automator Click (Fallback Strategy for Photo)
         shutter_ids = [
@@ -138,11 +137,15 @@ def run_tests(ui: UIHelper, reporter: HTMLReportGenerator, specs=None, selectors
                 shutter = ui.d(resourceIdMatches=sid)
                 if shutter.exists(timeout=2):
                     logging.info(f"Triggering shutter via UI Click fallback ({sid})")
-                    shutter.click(timeout=3)
+                    # Use click() for photo, but for video we want a fast tap to avoid blocking
+                    bounds = shutter.info['bounds']
+                    cx = (bounds['left'] + bounds['right']) // 2
+                    cy = (bounds['top'] + bounds['bottom']) // 2
+                    run_adb_cmd(f"input tap {cx} {cy}")
                     return True
             except: pass
             
-        # Step 3: Coordinate Fallback (Calculated for Photo)
+        # Step 3: Coordinate Fallback (Calculated)
         return do_coordinate_tap()
 
     # Clean start for Photo

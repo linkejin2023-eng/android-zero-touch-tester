@@ -64,9 +64,53 @@ def run_tests(ui: UIHelper, reporter: HTMLReportGenerator, ssid=None, password=N
             time.sleep(3)
             _, wifi_on_init = run_adb_cmd("settings get global wifi_on")
             if wifi_on_init.strip() == "1":
-                reporter.add_result("Connectivity", "WiFi Enable", True, "Successfully enabled WiFi")
+                reporter.add_result("Connectivity", "WiFi Enable", True, "Successfully enabled WiFi (via svc)")
             else:
-                reporter.add_result("Connectivity", "WiFi Enable", False, "WiFi failed to enable (settings check)")
+                logging.warning("svc wifi enable failed, falling back to UI toggle...")
+                run_adb_cmd("am start -a android.settings.WIFI_SETTINGS")
+                time.sleep(3)
+                
+                try:
+                    # Attempt to find switch widgets that can toggle WiFi
+                    switch = ui.d(className="android.widget.Switch")
+                    if switch.exists(timeout=3):
+                        if switch.info.get('checked') == False or switch.info.get('text') == 'Off' or switch.info.get('text') == '關閉' or switch.info.get('text') == '关闭':
+                            logging.info("Found WiFi switch in OFF state, tapping...")
+                            switch.click()
+                            time.sleep(2)
+                    else:
+                        # Fallback for devices using different widget classes or text wrappers
+                        toggle_texts = ["Use Wi-Fi", "Wi-Fi", "WLAN"]
+                        for txt in toggle_texts:
+                            btn = ui.d(textContains=txt, scrollable=False)
+                            if btn.exists(timeout=1):
+                                logging.info(f"Found toggle by text '{txt}', tapping bounds...")
+                                btn.click()
+                                time.sleep(2)
+                                break
+                                
+                    # 處理 China SKU 的安全授權彈窗 (例如: 永远允许)
+                    for allow_txt in ["永远允许", "允許", "Allow", "始终允许"]:
+                        allow_btn = ui.d(textMatches=f"(?i).*{allow_txt}.*")
+                        if allow_btn.exists(timeout=1.5):
+                            logging.info(f"Found authorization popup '{allow_txt}', tapping...")
+                            allow_btn.click()
+                            time.sleep(2)
+                            break
+                            
+                except Exception as e:
+                    logging.warning(f"UI fallback exception: {e}")
+                
+                # Check again
+                _, wifi_on_retry = run_adb_cmd("settings get global wifi_on")
+                if wifi_on_retry.strip() == "1":
+                    reporter.add_result("Connectivity", "WiFi Enable", True, "Successfully enabled WiFi (via UI fallback)")
+                else:
+                    reporter.add_result("Connectivity", "WiFi Enable", False, f"WiFi failed to enable (settings check). svc_initial='{wifi_on_init.strip()}', final='{wifi_on_retry.strip()}'")
+                
+                # Try to go back to home or out of settings
+                run_adb_cmd("input keyevent 4")
+                time.sleep(1)
         else:
             reporter.add_result("Connectivity", "WiFi Enable", True, "Skipped by profile", status_override="SKIP")
 
@@ -167,6 +211,42 @@ def run_tests(ui: UIHelper, reporter: HTMLReportGenerator, ssid=None, password=N
             time.sleep(3)
             _, out_fix = run_adb_cmd("settings get global bluetooth_on")
             is_on = out_fix.strip() == "1"
+            
+            if not is_on:
+                logging.warning("svc bluetooth enable failed, falling back to UI toggle...")
+                run_adb_cmd("am start -a android.settings.BLUETOOTH_SETTINGS")
+                time.sleep(3)
+                try:
+                    switch = ui.d(className="android.widget.Switch")
+                    if switch.exists(timeout=3):
+                        if switch.info.get('checked') == False or switch.info.get('text') in ['Off', '關閉', '关闭']:
+                            logging.info("Found Bluetooth switch in OFF state, tapping...")
+                            switch.click()
+                            time.sleep(2)
+                    else:
+                        toggle_texts = ["Use Bluetooth", "Bluetooth", "藍牙", "蓝牙"]
+                        for txt in toggle_texts:
+                            btn = ui.d(textContains=txt, scrollable=False)
+                            if btn.exists(timeout=1):
+                                logging.info(f"Found toggle by text '{txt}', tapping bounds...")
+                                btn.click()
+                                time.sleep(2)
+                                break
+                    
+                    for allow_txt in ["永远允许", "允許", "Allow", "始终允许"]:
+                        allow_btn = ui.d(textMatches=f"(?i).*{allow_txt}.*")
+                        if allow_btn.exists(timeout=1.5):
+                            logging.info(f"Found authorization popup '{allow_txt}', tapping...")
+                            allow_btn.click()
+                            time.sleep(2)
+                            break
+                except Exception as e:
+                    logging.warning(f"BT UI fallback exception: {e}")
+                
+                _, out_fix = run_adb_cmd("settings get global bluetooth_on")
+                is_on = out_fix.strip() == "1"
+                run_adb_cmd("input keyevent 4")
+                time.sleep(1)
 
         if is_on:
             if "Bluetooth Enable" not in excluded:

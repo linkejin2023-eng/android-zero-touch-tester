@@ -74,8 +74,8 @@ def run_tests(ui: UIHelper, reporter: HTMLReportGenerator, specs=None, selectors
             run_adb_cmd("am start -a android.provider.MediaStore.RECORD_SOUND")
             time.sleep(3)
             
-            allow_btns = ui_common.get("allow_texts", ["Allow", "WHILE USING THE APP", "允許", "使用時允許"])
-            confirm_btns = ui_common.get("confirm_texts", ["OK", "Next", "AGREE", "確定", "下一步", "同意"])
+            allow_btns = ui_common.get("allow_texts", ["Allow", "WHILE USING THE APP", "允許", "使用時允許", "使用时允许", "仅限一次", "仅限这一次", "永远允许", "始终允许", "始终", "仅在使用该应用时允许", "仅本次使用时允许"])
+            confirm_btns = ui_common.get("confirm_texts", ["OK", "Next", "AGREE", "確定", "下一步", "同意", "允许", "同意并继续", "确认", "确定"])
             combined_popups = list(set(allow_btns + confirm_btns))
             
             for _ in range(8):

@@ -47,8 +47,14 @@
         },
         {
           "type": "ui",
-          "intent": "android.settings.DEVICE_INFO_SETTINGS",
-          "target_text": "Touch firmware version"
+          "intent": "android.settings.SETTINGS",
+          "click_texts": [
+            "About phone",
+            "About tablet",
+            "关于本机"
+          ],
+          "click_pattern": "(?i).*(About phone|About tablet|关于本机).*",
+          "target_pattern": "(?i).*(Touch firmware version|触控.*版本).*"
         }
       ]
     },
@@ -59,15 +65,28 @@
       "mode": "exact",
       "extractors": [
         {
+          "type": "logcat",
+          "command": "logcat -d | grep '## Keyboard Firmware Version' | tail -n 1",
+          "split_by": ":",
+          "split_index": -1
+        },
+        {
+          "type": "shell",
+          "command": "dumpsys input | grep -i 'vendor=0x099e, product=0x0342' | grep -o 'version=0x[0-9]*' | sed -n 's/.*0x0*//p' | awk '{print \"0.\" $1}'"
+        },
+        {
           "type": "ui",
           "intent": "android.settings.HARD_KEYBOARD_SETTINGS",
           "click_texts": [
-            "Built-in Keyboard",
             "Built-in Keypad Firmware",
-            "Physical Keyboard"
+            "内置键盘",
+            "Built-in Keyboard",
+            "键盘",
+            "Physical Keyboard",
+            "实体键盘"
           ],
-          "click_pattern": "(?i).*built-in.*(keyboard|keypad).*",
-          "target_pattern": "(?i).*(keyboard|keypad|fw|firmware).*(version|fw|firmware).*"
+          "click_pattern": "(?i).*(built-in|keyboard|keypad|内置|实体|键盘).*",
+          "target_pattern": "(?i).*(Keypad Firmware|键盘固件版本).*"
         }
       ]
     }

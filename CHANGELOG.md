@@ -1,6 +1,26 @@
 # Changelog
 所有關於 Android Sanity Test 自動化框架的顯著變更將記載於此。
 
+## [2.2.5] - 2026-06-16
+### Fixed
+- **Camera Permission Bypass**: 修正 `test_camera.py` 中因 GMS 的首次位置授權彈窗標題包含 "Allow" 字眼，導致 UI Automator 誤判點擊不可操作之標題的問題。加入 `clickable=True` 強制精確點擊授權按鈕。
+
+## [2.2.4] - 2026-06-15
+### Fixed
+- **GMS Touch Firmware Extraction**: 在 `configs/build_info.json` 的 Touch Firmware UI 導航 `click_texts` 陣列中新增 `"About tablet"` 以相容 GMS 設備的系統層級結構差異，確保 Touch FW 能正確被讀取。
+- **Keypad MCU Firmware Extraction (dumpsys input)**: 為 Keypad Firmware 增加以 `dumpsys input` 解析版本號的 `shell` extractor 作為第二備援機制，解決在沒有硬體鍵盤獨立 UI 頁面 (如 GMS) 且系統 Logcat Buffer 翻轉遺失時，發生無法取得鍵盤韌體版本的錯誤。
+- **GMS Camera Shutter (Photo & Video)**: 修正 `test_camera.py` 中因 `KEYCODE_CAMERA` (27) 於 GMS SKU 未生效卻仍回傳成功，導致跳過 UI 備援點擊的問題。同時修正 Video 錄影時，在 Portrait 方向下 `do_coordinate_tap` 坐標計算錯誤的問題，統一優先採用精確的 UI Automator 元素邊界點擊 (bounds center tap)。
+
+## [2.2.3] - 2026-06-15
+### Fixed
+- **China SKU ADB Enablement HID Sequence**: 修正 China SKU 啟用 ADB 時的按鍵導航邏輯，將向下移動次數改為 12 次並增加一次向上移動，確保焦點準確落在「開發人員選項」。
+
+## [2.2.2] - 2026-06-12
+### Fixed
+- **WiFi 啟用 UI Fallback (WiFi UI Fallback)**: 針對 China SKU 系統安全策略攔截背景 `svc wifi enable` 指令導致測試失敗的問題，在 `test_connectivity.py` 加入 UI Automator 備援機制。當背景開啟失敗時，將自動導航至 Settings 介面並透過精準元件與文本匹配 (`android.widget.Switch`, `Use Wi-Fi`, `WLAN`) 自動點擊開啟。
+- **Bluetooth 啟用 UI Fallback (Bluetooth UI Fallback)**: 實作與 WiFi 相同的 Fallback 機制，當 `svc bluetooth enable` 失敗時，自動導航並點擊藍牙開關與授權彈窗。
+- **China SKU 安全授權與 EULA 彈窗擴充 (Authorization & EULA Popups)**: 在 `test_camera.py` 與 `test_audio.py` 中，進一步擴充權限排除字典。針對 Android 11+ 系統用語，新增 `仅在使用该应用时允许`、`仅本次使用时允许`，並補上簡體中文的 `确定` 以正確關閉相機/錄音機首次啟動的「用戶須知 (EULA)」彈窗，解決找不到錄製/快門按鈕的錯誤。
+
 ## [2.2.1] - 2026-06-11
 ### Fixed
 - **OOBE Bypass 變數作用域修正 (OOBE Bypass Scope Fix)**: 修復 `hid_gadget/oobe_bypass_script.py` 中 `adb_helper` 變數在賦值前被引用導致的 `UnboundLocalError` 問題，確保在 China SKU 且 Fastboot 逾時的情況下能正常執行 OOBE 繞過流程。
