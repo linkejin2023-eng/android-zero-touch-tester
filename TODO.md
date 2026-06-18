@@ -29,6 +29,8 @@
 ---
 
 ## 待擴展清單 (Next Deliverables)
+- [x] **Audio Popup Robustness Fix**: (2026-06-18 已完成) 將 `test_audio.py` 的權限彈窗處理從固定次數與提早 `break` 改為基於時間 (Time-based) 的輪詢機制，徹底解決設備卡頓導致彈窗判定誤判與錄音按鈕超時問題。
+- [x] **China SKU UIAutomator2 Bypass Stability**: (2026-06-17 已完成) 修復 `test_camera.py` 與 `test_audio.py` 因彈窗次數過多與 Regex 匹配過慢導致點擊失敗的問題。
 - [x] **Camera Permission Title Matching Fix**: (2026-06-16 已完成) 在 `test_camera.py` 中加上 `clickable=True` 條件，修正授權彈窗標題誤觸的問題。
 - [x] **GMS SKU Firmware & Camera Fixes**: (2026-06-15 已完成) 修復 GMS SKU 的 Touch/Keypad Firmware 提取邏輯 (加入 `About tablet` 與 `dumpsys input` 備援) 及相機快門不穩定與 Portrait 方向錄影的座標點擊錯誤。
 - [x] **China SKU ADB Enablement HID Sequence**: (2026-06-15 已完成) 修正 China SKU 啟用 ADB 時的按鍵導航邏輯。

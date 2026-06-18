@@ -1,6 +1,16 @@
 # Changelog
 所有關於 Android Sanity Test 自動化框架的顯著變更將記載於此。
 
+## [2.2.7] - 2026-06-18
+### Fixed
+- **Audio Popup Robustness Fix**: 將 `test_audio.py` 的權限彈窗處理從固定次數與提早 `break` 改為基於時間 (Time-based) 的輪詢機制，徹底解決設備卡頓或首次啟動「用戶須知」載入過慢時，導致彈窗防護機制提早結束並遮擋錄音按鈕的失敗問題。
+- **Audio Saving Localization & UI Healing**: 在 `test_audio.py` 存檔按鈕的文字陣列中新增簡體中文的 `"保存"`，解決 China SKU 錄音後未存檔導致判定失敗，且殘留彈窗癱瘓下一輪測試的問題。同時導入盲按 `back` 的自癒機制，確保卡在錄音列表或未知遮罩時能自動退出。
+
+## [2.2.6] - 2026-06-17
+### Fixed
+- **China SKU UIAutomator2 Bypass Stability**: 修正 `test_camera.py` 與 `test_audio.py` 在 China SKU 上因權限彈窗過多導致 UI 繞過失敗的問題。將迴圈次數上限增加至 5 及 8 次以防卡死，並在 `test_audio.py` 引進 `pattern = "|".join(...)` 加快 Regex 比對速度。
+- **China SKU Permission Text Matching**: 修正 `configs/ui_selectors.json` 覆寫了腳本內建的 Simplified Chinese fallback 陣列，導致 Regex pattern 遺失簡體中文關鍵字的問題。在 JSON 設定檔中補齊了「允许」、「仅在使用该应用时允许」等 China SKU 專用字串，徹底解決 U2 無法點擊彈窗的根本原因。
+
 ## [2.2.5] - 2026-06-16
 ### Fixed
 - **Camera Permission Bypass**: 修正 `test_camera.py` 中因 GMS 的首次位置授權彈窗標題包含 "Allow" 字眼，導致 UI Automator 誤判點擊不可操作之標題的問題。加入 `clickable=True` 強制精確點擊授權按鈕。

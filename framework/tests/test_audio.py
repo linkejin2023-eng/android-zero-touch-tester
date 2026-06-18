@@ -78,32 +78,41 @@ def run_tests(ui: UIHelper, reporter: HTMLReportGenerator, specs=None, selectors
             confirm_btns = ui_common.get("confirm_texts", ["OK", "Next", "AGREE", "確定", "下一步", "同意", "允许", "同意并继续", "确认", "确定"])
             combined_popups = list(set(allow_btns + confirm_btns))
             
-            for _ in range(8):
-                found = False
-                for btn_text in combined_popups:
-                    btn = ui.d(textMatches=f"(?i){btn_text}")
+            pattern = "|".join(f".*{btn}.*" for btn in combined_popups)
+            popup_wait_end = time.time() + 10
+            while time.time() < popup_wait_end:
+                try:
+                    # DEBUG LOGGING
+                    logging.info(f"DEBUG UIAutomator2: Current package is {ui.d.info.get('currentPackageName')}")
+                    xml_dump = ui.d.dump_hierarchy()
+                    logging.info(f"DEBUG UIAutomator2: XML dump size {len(xml_dump)} bytes. '允许' in XML: {'允许' in xml_dump}")
+
+                    btn = ui.d(textMatches=f"(?i)({pattern})", clickable=True)
                     if btn.exists(timeout=1):
-                        btn.click()
+                        logging.info(f"Clicking audio popup: {btn.info.get('text', 'unknown')}")
+                        btn.click(timeout=1)
                         time.sleep(1.5)
-                        found = True
-                if not found: break
+                        popup_wait_end = time.time() + 5
+                except Exception as e:
+                    logging.warning(f"Error in audio dialog bypass: {e}")
 
-            if ui.d(textMatches="(?i)Recording list").exists(timeout=2):
-                ui.d.press("back")
-                time.sleep(2)
-
-            start_button = None
-            specific_id = recorder_specs.get("shutter_id")
-            if specific_id:
-                btn = ui.d(resourceId=specific_id)
-                if btn.exists(timeout=2): start_button = btn
-            
-            if not start_button:
+            def find_start_btn():
+                specific_id = recorder_specs.get("shutter_id")
+                if specific_id:
+                    btn = ui.d(resourceId=specific_id)
+                    if btn.exists(timeout=2): return btn
                 for res_id in [".*record_button.*", ".*start_button.*", ".*btn_record.*", ".*shutter.*"]:
                     btn = ui.d(resourceIdMatches=res_id)
-                    if btn.exists(timeout=1):
-                        start_button = btn
-                        break
+                    if btn.exists(timeout=1): return btn
+                return None
+
+            start_button = find_start_btn()
+            
+            if not start_button:
+                logging.info("Start button not found. Blindly pressing back to clear potential file list or dialog...")
+                ui.d.press("back")
+                time.sleep(2)
+                start_button = find_start_btn()
             
             if start_button:
                 start_button.click()
@@ -126,7 +135,7 @@ def run_tests(ui: UIHelper, reporter: HTMLReportGenerator, specs=None, selectors
                             break
                 
                 time.sleep(1)
-                for dialog_btn in ["Save", "OK", "儲存", "確定"]:
+                for dialog_btn in ["Save", "OK", "儲存", "確定", "保存"]:
                     btn = ui.d(textMatches=f"(?i){dialog_btn}")
                     if btn.exists(timeout=1):
                         btn.click()

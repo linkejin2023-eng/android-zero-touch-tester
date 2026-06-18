@@ -47,15 +47,20 @@ def run_tests(ui: UIHelper, reporter: HTMLReportGenerator, specs=None, selectors
         combined = list(set(allow_btns + confirm_btns))
         pattern = "|".join(f".*{btn}.*" for btn in combined)
         
-        for _ in range(3):
+        for _ in range(5):
             try:
+                # DEBUG LOGGING
+                logging.info(f"DEBUG UIAutomator2: Current package is {ui.d.info.get('currentPackageName')}")
+                xml_dump = ui.d.dump_hierarchy()
+                logging.info(f"DEBUG UIAutomator2: XML dump size {len(xml_dump)} bytes. '允许' in XML: {'允许' in xml_dump}")
+
                 # Add clickable=True to prevent matching unclickable dialog titles (e.g. "Allow Camera to...")
                 btn = ui.d(textMatches=f"(?i)({pattern})", clickable=True)
-                if btn.exists(timeout=0.5):
+                if btn.exists(timeout=1.5):
                     btn_text = btn.info.get('text', 'unknown')
                     logging.info(f"Clicking camera popup: {btn_text}")
                     btn.click(timeout=1)
-                    time.sleep(1)
+                    time.sleep(1.5)
                 else:
                     break
             except Exception as e:
